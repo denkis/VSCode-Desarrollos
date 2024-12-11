@@ -243,7 +243,73 @@ BEGIN
     UPDATE  #universoFinal
     SET nroMesesLaguna = DATEDIFF(mm,fechaInicioLaguna,ISnull(fechaTerminoLaguna,ldtFechaPeriodoInformado))+1 ;
 
+    ----PRODUCTOS VOLUNTARIOS
 
+    SELECT  dp.rut,dgm.nombreGrupo,dgm.nombreSubgrupo ,sum(montoPesos)totalPesos,dtp.codigo,dtp.nombreCorto , COUNT(DISTINCT periodoDevengRemuneracion) totalMeses,fl.fechaInicioLaguna,fl.fechaTerminoLaguna,fl.nroLaguna
+    INTO #productosVoluntarios
+    FROM DMGestion.FctMovimientosCuenta fmc 
+    INNER JOIN DMGestion.DimPeriodoInformado dpi ON dpi.id = fmc.idPeriodoInformado 
+    INNER JOIN DMGestion.DimPersona dp ON dp.id = fmc.idPersona 
+    INNER JOIN DMGestion.DimGrupoMovimiento dgm ON dgm.id = fmc.idGrupoMovimiento 
+    INNER JOIN DMGestion.DimTipoProducto dtp ON dtp.id = CASE WHEN fmc.idTipoProducto = 10 THEN 2 ELSE fmc.idTipoProducto END 
+    INNER JOIN (SELECT rut,fl.fechaInicioLaguna ,isnull(fechaTerminoLaguna,date('2024-08-01'))fechaTerminoLaguna,fl.orden AS nroLaguna
+                FROM #universoFinal fl
+                ) fl ON fl.rut = dp.rut 
+    WHERE dtp.codigo IN (2,4,5,10)
+        --AND dp.rut = 10398097
+        AND periodoDevengRemuneracion BETWEEN fl.fechaInicioLaguna  AND fl.fechaTerminoLaguna 
+        AND dgm.tipoMovimiento = 'Abonos'
+        AND nombreSubgrupo = 'Cotizaciones'
+        AND nombreGrupo = 'Cotizaciones y Depósitos'
+    GROUP BY dp.rut,nombreGrupo,dgm.nombreSubgrupo,dtp.codigo,dtp.nombreCorto,fl.fechaInicioLaguna,fl.fechaTerminoLaguna,nroLaguna;
+
+    UPDATE dchavez.FctLagunaPrevisionalDetalle
+    SET nroMesesAbonoCCIDC = vl.totalMeses,
+    montoTotalPesosAbonoCCIDC = vl.totalPesos
+    FROM #universoFinal fl
+    INNER JOIN #productosVoluntarios vl ON fl.orden = vl.nroLaguna
+        AND fl.rut = vl.rut
+        AND vl.codigo = 5; --CCIDC
+
+    UPDATE dchavez.FctLagunaPrevisionalDetalle
+    SET nroMesesAbonoCAV = vl.totalMeses,
+    montoTotalPesosAbonoCAV = vl.totalPesos
+    FROM #universoFinal fl
+    INNER JOIN #productosVoluntarios vl ON fl.orden = vl.nroLaguna
+        AND fl.rut = vl.rut
+        AND vl.codigo = 2;--CAV
+
+    UPDATE dchavez.FctLagunaPrevisionalDetalle
+    SET nroMesesAbonoCCICV = vl.totalMeses,
+    montoTotalPesosAbonoCICV = vl.totalPesos
+    FROM #universoFinal fl
+    INNER JOIN #productosVoluntarios vl ON fl.orden = vl.nroLaguna
+        AND fl.rut = vl.rut
+        AND vl.codigo = 4;--CCICV
+
+    ----Total Voluntario sin producto
+    SELECT  dp.rut, COUNT(DISTINCT periodoDevengRemuneracion) totalMeses,nroLaguna
+        INTO  #totalVoluntarios
+    FROM DMGestion.FctMovimientosCuenta fmc 
+    INNER JOIN DMGestion.DimPeriodoInformado dpi ON dpi.id = fmc.idPeriodoInformado 
+    INNER JOIN DMGestion.DimPersona dp ON dp.id = fmc.idPersona 
+    INNER JOIN DMGestion.DimGrupoMovimiento dgm ON dgm.id = fmc.idGrupoMovimiento 
+    INNER JOIN DMGestion.DimTipoProducto dtp ON dtp.id = CASE WHEN fmc.idTipoProducto = 10 THEN 2 ELSE fmc.idTipoProducto END 
+    INNER JOIN (SELECT rut,fl.fechaInicioLaguna ,isnull(fechaTerminoLaguna,date('2024-08-01'))fechaTerminoLaguna,fl.orden AS nroLaguna
+                FROM #universoFinal fl
+                ) fl ON fl.rut = dp.rut 
+    WHERE dtp.codigo IN (2,4,5,10)
+        AND periodoDevengRemuneracion BETWEEN fl.fechaInicioLaguna  AND fl.fechaTerminoLaguna 
+        AND dgm.tipoMovimiento = 'Abonos'
+        AND nombreSubgrupo = 'Cotizaciones'
+        AND nombreGrupo = 'Cotizaciones y Depósitos'
+    GROUP BY dp.rut,fl.nroLaguna;
+
+    UPDATE dchavez.FctLagunaPrevisionalDetalle
+    SET nroMesesAbonoProdVoluntario = vl.totalMeses
+    FROM #universoFinal fl
+    INNER JOIN #totalVoluntarios vl ON vl.nroLaguna = fl.orden 
+        AND fl.rut = vl.rut;
 
    INSERT
     INTO
