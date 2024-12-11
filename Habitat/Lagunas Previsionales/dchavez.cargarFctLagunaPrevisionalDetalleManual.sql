@@ -1,4 +1,4 @@
-create PROCEDURE dchavez.cargarFctLagunaPrevisionalDetalleManual(IN periodoInformar date,OUT codigoError VARCHAR(10))
+ALTER  PROCEDURE dchavez.cargarFctLagunaPrevisionalDetalleManual(IN periodoInformar date,OUT codigoError VARCHAR(10))
 BEGIN
 /**
         - Nombre archivo                            : cargarFctAfiliadoCotizanteManual.sql
@@ -113,8 +113,16 @@ BEGIN
         fechaInicioLaguna date  NULL,
         fechaTerminoLaguna date  NULL,
         nroMesesLaguna integer NULL,
-        orden bigint null
-    );
+        orden bigint NULL,
+        nroMesesAbonoCAV INTEGER NULL,
+        montoTotalPesosAbonoCAV BIGINT NULL,
+        nroMesesAbonoCCICV INTEGER NULL,
+        montoTotalPesosAbonoCICV BIGINT NULL,
+        nroMesesAbonoCCIDC INTEGER NULL,
+        montoTotalPesosAbonoCCIDC BIGINT NULL,
+        nroMesesAbonoProdVoluntario INTEGER NULL,
+        indVigenciaUltimaLAguna char(2) null
+        );
     CREATE HG INDEX HG_universoFinal_01 ON #universoFinal (rut);
     CREATE date INDEX DT_universoFinal_02 ON #universoFinal (fechaInicioLaguna);
     CREATE date INDEX DT_universoFinal_03 ON #universoFinal (fechaTerminoLaguna);
@@ -263,7 +271,7 @@ BEGIN
         AND nombreGrupo = 'Cotizaciones y Depósitos'
     GROUP BY dp.rut,nombreGrupo,dgm.nombreSubgrupo,dtp.codigo,dtp.nombreCorto,fl.fechaInicioLaguna,fl.fechaTerminoLaguna,nroLaguna;
 
-    UPDATE dchavez.FctLagunaPrevisionalDetalle
+    UPDATE #universoFinal
     SET nroMesesAbonoCCIDC = vl.totalMeses,
     montoTotalPesosAbonoCCIDC = vl.totalPesos
     FROM #universoFinal fl
@@ -271,7 +279,7 @@ BEGIN
         AND fl.rut = vl.rut
         AND vl.codigo = 5; --CCIDC
 
-    UPDATE dchavez.FctLagunaPrevisionalDetalle
+    UPDATE #universoFinal
     SET nroMesesAbonoCAV = vl.totalMeses,
     montoTotalPesosAbonoCAV = vl.totalPesos
     FROM #universoFinal fl
@@ -279,7 +287,7 @@ BEGIN
         AND fl.rut = vl.rut
         AND vl.codigo = 2;--CAV
 
-    UPDATE dchavez.FctLagunaPrevisionalDetalle
+    UPDATE #universoFinal
     SET nroMesesAbonoCCICV = vl.totalMeses,
     montoTotalPesosAbonoCICV = vl.totalPesos
     FROM #universoFinal fl
@@ -305,11 +313,15 @@ BEGIN
         AND nombreGrupo = 'Cotizaciones y Depósitos'
     GROUP BY dp.rut,fl.nroLaguna;
 
-    UPDATE dchavez.FctLagunaPrevisionalDetalle
+    UPDATE #universoFinal
     SET nroMesesAbonoProdVoluntario = vl.totalMeses
     FROM #universoFinal fl
     INNER JOIN #totalVoluntarios vl ON vl.nroLaguna = fl.orden 
         AND fl.rut = vl.rut;
+    
+    UPDATE #universoFinal
+    SET indVigenciaUltimaLaguna = CASE WHEN fechaTerminoLaguna IS NULL THEN 'Si' ELSE 'No' END;
+    
 
    INSERT
     INTO
@@ -319,14 +331,28 @@ BEGIN
     fechaInicioLaguna,
     fechaTerminoLaguna,
     nroMesesLaguna,
-    nroLaguna)
+    nroLaguna,
+    nroMesesAbonoCAV,
+    montoTotalPesosAbonoCAV,
+    nroMesesAbonoCCICV,
+    montoTotalPesosAbonoCCICV,
+    nroMesesAbonoCCIDC,
+    montoTotalPesosAbonoCCIDC,
+    nroMesesAbonoProdVoluntario,
+    indVigenciaUltimaLAguna)
     SELECT
     dpi.id
     , dp.id idPersona
     , fechaInicioLaguna
     , fechaTerminoLaguna
     , nroMesesLaguna
-    , orden nroLaguna
+    , orden nroLaguna,
+    , nroMesesAbonoCCICV,
+    , montoTotalPesosAbonoCCICV,
+    , nroMesesAbonoCCIDC,
+    , montoTotalPesosAbonoCCIDC,
+    , nroMesesAbonoProdVoluntario,
+    , indVigenciaUltimaLAguna
     FROM #universoFinal a
         INNER JOIN DMGestion.Dimpersona dp ON dp.rut = a.rut
             AND dp.fechaVigencia >= ldtMaximaFechaVigencia
