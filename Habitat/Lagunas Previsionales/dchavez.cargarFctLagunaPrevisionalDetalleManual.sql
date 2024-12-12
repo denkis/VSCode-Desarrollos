@@ -117,7 +117,7 @@ BEGIN
         nroMesesAbonoCAV INTEGER NULL,
         montoTotalPesosAbonoCAV BIGINT NULL,
         nroMesesAbonoCCICV INTEGER NULL,
-        montoTotalPesosAbonoCICV BIGINT NULL,
+        montoTotalPesosAbonoCCICV BIGINT NULL,
         nroMesesAbonoCCIDC INTEGER NULL,
         montoTotalPesosAbonoCCIDC BIGINT NULL,
         nroMesesAbonoProdVoluntario INTEGER NULL,
@@ -289,7 +289,7 @@ BEGIN
 
     UPDATE #universoFinal
     SET nroMesesAbonoCCICV = vl.totalMeses,
-    montoTotalPesosAbonoCICV = vl.totalPesos
+    montoTotalPesosAbonoCCICV = vl.totalPesos
     FROM #universoFinal fl
     INNER JOIN #productosVoluntarios vl ON fl.orden = vl.nroLaguna
         AND fl.rut = vl.rut
@@ -341,17 +341,19 @@ BEGIN
     nroMesesAbonoProdVoluntario,
     indVigenciaUltimaLAguna)
     SELECT
-    dpi.id
+      dpi.id
     , dp.id idPersona
     , fechaInicioLaguna
     , fechaTerminoLaguna
     , nroMesesLaguna
-    , orden nroLaguna,
-    , nroMesesAbonoCCICV,
-    , montoTotalPesosAbonoCCICV,
-    , nroMesesAbonoCCIDC,
-    , montoTotalPesosAbonoCCIDC,
-    , nroMesesAbonoProdVoluntario,
+    , orden nroLaguna
+    , nroMesesAbonoCAV
+    , montoTotalPesosAbonoCAV
+    , nroMesesAbonoCCICV
+    , montoTotalPesosAbonoCCICV
+    , nroMesesAbonoCCIDC
+    , montoTotalPesosAbonoCCIDC
+    , nroMesesAbonoProdVoluntario
     , indVigenciaUltimaLAguna
     FROM #universoFinal a
         INNER JOIN DMGestion.Dimpersona dp ON dp.rut = a.rut
