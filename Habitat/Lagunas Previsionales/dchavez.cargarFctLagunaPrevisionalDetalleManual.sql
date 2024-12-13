@@ -101,9 +101,9 @@ BEGIN
         periodoInicio date NULL,
         periodoTermino date NULL
     );
-    CREATE INDEX DATE_licenciasMedicasTMP_01 ON habitat.dchavez.licenciasMedicasTMP (periodoInicio);
-    CREATE INDEX DATE_licenciasMedicasTMP_02 ON habitat.dchavez.licenciasMedicasTMP (periodoTermino);
-    CREATE INDEX HG_licenciasMedicasTMP_01 ON habitat.dchavez.licenciasMedicasTMP (rut);
+    CREATE INDEX DATE_licenciasMedicasTMP_01 ON dchavez.licenciasMedicasTMP (periodoInicio);
+    CREATE INDEX DATE_licenciasMedicasTMP_02 ON dchavez.licenciasMedicasTMP (periodoTermino);
+    CREATE INDEX HG_licenciasMedicasTMP_01 ON   dchavez.licenciasMedicasTMP (rut);
 
     CREATE TABLE #universoFinal (
         periodoInformado date,
@@ -121,7 +121,9 @@ BEGIN
         nroMesesAbonoCCIDC INTEGER NULL,
         montoTotalPesosAbonoCCIDC BIGINT NULL,
         nroMesesAbonoProdVoluntario INTEGER NULL,
-        indVigenciaUltimaLAguna char(2) null
+        indVigenciaUltimaLAguna char(2) NULL,
+        indExisteDNP char(2) NULL,
+        indExisteDNPA char(2) NULL         
         );
     CREATE HG INDEX HG_universoFinal_01 ON #universoFinal (rut);
     CREATE date INDEX DT_universoFinal_02 ON #universoFinal (fechaInicioLaguna);
@@ -155,6 +157,7 @@ BEGIN
     FROM dds.TB_DET_PLANILLA tdp
     INNER JOIN dds.TB_MAE_PERSONA tmp ON tmp.ID_MAE_PERSONA = tdp.ID_MAE_PERSONA 
     INNER JOIN detalle det ON det.ID_DET_PLANILLA = tdp.ID_DET_PLANILLA;
+    --INNER JOIN dchavez.periodoCotizadosTMP pc ON pc.rut = tmp.RUT_MAE_PERSONA;
 
 
     UPDATE  dchavez.periodoCotizadosTMP 
@@ -171,6 +174,9 @@ BEGIN
     FROM dchavez.periodoCotizadosTMP a
         INNER JOIN dchavez.licenciasMedicasTMP B ON A.periodo = B.periodoTermino AND a.rut = b.rut
     WHERE a.per_cot IS NULL;
+
+
+   -- DROP TABLE #licenciasMedicasTMP;
 
 
     ----PERIODO ANTERIOR--------
@@ -251,6 +257,9 @@ BEGIN
     UPDATE  #universoFinal
     SET nroMesesLaguna = DATEDIFF(mm,fechaInicioLaguna,ISnull(fechaTerminoLaguna,ldtFechaPeriodoInformado))+1 ;
 
+
+     MESSAGE 'PRODUCTOS VOLUNTARIOS' TO client;
+
     ----PRODUCTOS VOLUNTARIOS
 
     SELECT  dp.rut,dgm.nombreGrupo,dgm.nombreSubgrupo ,sum(montoPesos)totalPesos,dtp.codigo,dtp.nombreCorto , COUNT(DISTINCT periodoDevengRemuneracion) totalMeses,fl.fechaInicioLaguna,fl.fechaTerminoLaguna,fl.nroLaguna
@@ -294,7 +303,7 @@ BEGIN
     INNER JOIN #productosVoluntarios vl ON fl.orden = vl.nroLaguna
         AND fl.rut = vl.rut
         AND vl.codigo = 4;--CCICV
-
+        
     ----Total Voluntario sin producto
     SELECT  dp.rut, COUNT(DISTINCT periodoDevengRemuneracion) totalMeses,nroLaguna
         INTO  #totalVoluntarios
@@ -313,15 +322,45 @@ BEGIN
         AND nombreGrupo = 'Cotizaciones y Depósitos'
     GROUP BY dp.rut,fl.nroLaguna;
 
+
     UPDATE #universoFinal
     SET nroMesesAbonoProdVoluntario = vl.totalMeses
     FROM #universoFinal fl
     INNER JOIN #totalVoluntarios vl ON vl.nroLaguna = fl.orden 
-        AND fl.rut = vl.rut;
-    
+        AND fl.rut = vl.rut;  
+
     UPDATE #universoFinal
     SET indVigenciaUltimaLaguna = CASE WHEN fechaTerminoLaguna IS NULL THEN 'Si' ELSE 'No' END;
+
+    -----DEUDA --> DNP Y DNPA
+    SELECT  DISTINCT dp.rut,nroLaguna,dgm.codigo
+        INTO #totalDNPDNPA
+    FROM DMGestion.FctDetalleDeudaCotizacionesPrevisionales fd 
+    INNER JOIN DMGestion.DimPeriodoInformado dpi ON dpi.id = fd.idPeriodoInformado 
+    INNER JOIN DMGestion.DimPersona dp ON dp.id = fd.idAfiliado  
+    INNER JOIN DMGestion.DimOrigenDeuda dgm ON dgm.id = fd.idOrigenDeuda  
+    INNER JOIN DMGestion.DimSituacionDeuda dsd ON dsd.id = fd.idSituacionDeuda 
+    INNER JOIN (SELECT rut,fechaInicioLaguna ,isnull(fechaTerminoLaguna,'2024-08-01')fechaTerminoLaguna,ORDEn AS nroLaguna
+                FROM #universoFinal
+                ) fl ON fl.rut = dp.rut 
+    WHERE fd.periodoCotizado BETWEEN fl.fechaInicioLaguna  AND fl.fechaTerminoLaguna
+    AND dpi.fecha = ldtFechaPeriodoInformado
+    AND dgm.codigo IN ('01','07')
+    AND dsd.codigo = 1;
+
+    UPDATE #universoFinal
+    SET indExisteDNP = CASE WHEN vl.rut IS NOT NULL THEN 'Si' ELSE 'No' END
+    FROM #universoFinal fl
+    INNER JOIN #totalDNPDNPA vl ON vl.nroLaguna = fl.orden 
+        AND fl.rut = vl.rut
+        AND vl.codigo = '01';
     
+    UPDATE #universoFinal
+    SET indExisteDNPA = CASE WHEN vl.rut IS NOT NULL THEN 'Si' ELSE 'No' END
+    FROM #universoFinal fl
+    INNER JOIN #totalDNPDNPA vl ON vl.nroLaguna = fl.orden 
+        AND fl.rut = vl.rut
+        AND vl.codigo = '07';
 
    INSERT
     INTO
@@ -339,7 +378,9 @@ BEGIN
     nroMesesAbonoCCIDC,
     montoTotalPesosAbonoCCIDC,
     nroMesesAbonoProdVoluntario,
-    indVigenciaUltimaLAguna)
+    indVigenciaUltimaLAguna,
+    indExisteDNP,
+    indExisteDNPA)
     SELECT
       dpi.id
     , dp.id idPersona
@@ -355,6 +396,8 @@ BEGIN
     , montoTotalPesosAbonoCCIDC
     , nroMesesAbonoProdVoluntario
     , indVigenciaUltimaLAguna
+    , indExisteDNP
+    , indExisteDNPA
     FROM #universoFinal a
         INNER JOIN DMGestion.Dimpersona dp ON dp.rut = a.rut
             AND dp.fechaVigencia >= ldtMaximaFechaVigencia
