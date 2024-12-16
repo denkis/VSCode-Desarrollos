@@ -85,7 +85,6 @@ BEGIN
         TerminoLaguna           char(2)  NULL,
         FechaPension            date null, 
         codigoPension           VARCHAR(2) NULL,
-        ClasificacionPersona    VARCHAR(20) NULL,
         montoPesosCotiAnterior  integer null, 
         montoUFCotiAnterior     numeric(10,2) null
     );
@@ -141,8 +140,8 @@ BEGIN
 
 
     INSERT INTO dchavez.periodoCotizadosTMP
-    (rut,fechaAfiliacionSistema,ClasificacionPersona,periodo, per_cot,fechaPension, codigoPension,ClasificacionPersonar)
-    SELECT DISTINCT rut, fechaAfiliacionSistema, ClasificacionPersona, periodo , per_cot,fechaPension, codigoPension,ClasificacionPersona
+    (rut,fechaAfiliacionSistema,ClasificacionPersona,periodo, per_cot,fechaPension, codigoPension)
+    SELECT DISTINCT rut, fechaAfiliacionSistema, ClasificacionPersona, periodo , per_cot,fechaPension, codigoPension
     FROM dchavez.UniversoPeriodoCotizadosTMP;
 
 
