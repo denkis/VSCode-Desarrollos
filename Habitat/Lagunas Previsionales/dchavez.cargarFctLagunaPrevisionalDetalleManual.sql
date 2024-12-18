@@ -131,7 +131,9 @@ BEGIN
         indTerminoRelacionLaboral char(2) NULL,
         montoPesosCotiAnterior integer null, 
         montoUFCotiAnterior numeric(10,2) NULL,
-        FechaPension date null
+        FechaPension date NULL,
+        totalPlanesAPV integer NULL,
+        nroMesesAbonoCCIAV INTEGER NULL
         );
     CREATE HG INDEX HG_universoFinal_01 ON #universoFinal (rut);
     CREATE date INDEX DT_universoFinal_02 ON #universoFinal (fechaInicioLaguna);
@@ -290,9 +292,29 @@ BEGIN
             INNER JOIN #FinLaguna b ON a.rut = b.rut AND a.orden = b.orden;
         
         DROP TABLE #FinLaguna;
+    
+    
+        ---------INDICADOR DE VIGENCIA ULTIMA LAGUNA
+    
+        UPDATE #universoFinal
+        SET indVigenciaUltimaLaguna = CASE WHEN fechaTerminoLaguna IS NULL THEN 'Si' ELSE 'No' END;
         
         UPDATE  #universoFinal
-        SET nroMesesLaguna = DATEDIFF(mm,fechaInicioLaguna,ISnull(fechaTerminoLaguna,ldtFechaPeriodoInformado))+1 ;
+        SET nroMesesLaguna = DATEDIFF(mm,fechaInicioLaguna,ISnull(fechaTerminoLaguna,ldtFechaPeriodoInformado))+1
+        WHERE ClasificacionPersona = 'Afiliado';
+    
+        ---------NUMERO DE MESES DE LA LAGUNA
+    
+        UPDATE  #universoFinal
+        SET nroMesesLaguna = DATEDIFF(mm,fechaInicioLaguna,FechaPension)+1 ,
+        fechaTerminoLaguna = FechaPension
+        WHERE ClasificacionPersona = 'Pensionado'
+        AND indVigenciaUltimaLaguna = 'Si';
+    
+        UPDATE  #universoFinal
+        SET nroMesesLaguna = DATEDIFF(mm,fechaInicioLaguna,fechaTerminoLaguna)+1
+        WHERE ClasificacionPersona = 'Pensionado'
+        AND indVigenciaUltimaLaguna = 'No';
     
     
          MESSAGE 'PRODUCTOS VOLUNTARIOS' TO client;
@@ -365,9 +387,36 @@ BEGIN
         FROM #universoFinal fl
         INNER JOIN #totalVoluntarios vl ON vl.nroLaguna = fl.orden 
             AND fl.rut = vl.rut;  
+        
+        DROP TABLE #productosVoluntarios;
+        
+        ---- COTIZACIONES VOLUNTARIAS CCIAV
+    
+        SELECT  dp.rut,dgm.nombreGrupo,dgm.nombreSubgrupo , COUNT(DISTINCT periodoDevengRemuneracion) totalMeses,fl.fechaInicioLaguna,fl.fechaTerminoLaguna,fl.nroLaguna
+        INTO #CotizacionVoluntaria
+        FROM DMGestion.FctMovimientosCuenta fmc 
+        INNER JOIN DMGestion.DimPeriodoInformado dpi ON dpi.id = fmc.idPeriodoInformado 
+        INNER JOIN DMGestion.DimPersona dp ON dp.id = fmc.idPersona 
+        INNER JOIN DMGestion.DimGrupoMovimiento dgm ON dgm.id = fmc.idGrupoMovimiento 
+        INNER JOIN DMGestion.DimTipoProducto dtp ON dtp.id = fmc.idTipoProducto  
+        INNER JOIN (SELECT rut,fl.fechaInicioLaguna ,isnull(fechaTerminoLaguna,date('2024-08-01'))fechaTerminoLaguna,fl.orden AS nroLaguna
+                    FROM #universoFinal fl
+                    ) fl ON fl.rut = dp.rut 
+        WHERE dtp.codigo  = 6
+            AND periodoDevengRemuneracion BETWEEN fl.fechaInicioLaguna  AND isnull(fl.fechaTerminoLaguna,'20240801') 
+            AND dgm.tipoMovimiento = 'Abonos'
+            AND nombreSubgrupo = 'Cotizaciones'
+            AND nombreGrupo = 'Cotizaciones y Depósitos'
+        GROUP BY dp.rut,nombreGrupo,dgm.nombreSubgrupo,dtp.codigo,dtp.nombreCorto,fl.fechaInicioLaguna,fl.fechaTerminoLaguna,nroLaguna;
+    
     
         UPDATE #universoFinal
-        SET indVigenciaUltimaLaguna = CASE WHEN fechaTerminoLaguna IS NULL THEN 'Si' ELSE 'No' END;
+        SET nroMesesAbonoCCIAV = vl.totalMeses
+        FROM #universoFinal fl
+        INNER JOIN #CotizacionVoluntaria vl ON fl.orden = vl.nroLaguna
+            AND fl.rut = vl.rut; --CCIAV
+    
+
     
         -----DEUDA --> DNP Y DNPA
         SELECT  DISTINCT dp.rut,nroLaguna,dgm.codigo
@@ -415,6 +464,29 @@ BEGIN
             AND fl.rut = vl.rut;
         
         
+        -------PLANES APV-----------------------------------------------------------------------------------
+
+        SELECT dp.rut,qa.orden nroLaguna,count(DISTINCT fvp.idTipoProducto) totalPlanes
+        INTO #planes
+        FROM DMGestion.FctVentaPlan fvp 
+            INNER JOIN DMGestion.DimFecha df ON df.id = fvp.idFechaSuscripcion 
+            INNER JOIN DMGestion.DimCausalesRechazo dcr ON dcr.id = fvp.idCausalesRechazo 
+            INNER JOIN DMGestion.DimPersona dp ON dp.id = fvp.idPersona 
+            INNER JOIN dchavez.DimEstadoSolicitud des ON des.id = fvp.idEstadoSolicitud 
+            INNER JOIN #universoFinal qa ON qa.rut = dp.rut 
+        WHERE qa.fechaInicioLaguna >= fechaInicioDescuento 
+        AND isnull(fechaFinDescuento,'20240801') <= isnull(qa.fechaTerminoLaguna,'20240801') 
+        AND des.codigo = 4
+        AND fechaInicioDescuento IS NOT NULL 
+        GROUP BY dp.rut,nroLaguna;
+        
+        UPDATE #universoFinal
+        SET totalPlanesAPV = vl.totalPlanes
+        FROM #universoFinal fl
+            INNER JOIN #planes vl ON vl.nroLaguna = fl.orden
+                AND fl.rut = vl.rut;
+        
+        
     
        INSERT INTO
         dchavez.FctLagunaPrevisionalDetalle
@@ -437,7 +509,9 @@ BEGIN
         indExisteDNPA,
         indTerminoRelacionLaboral,
         montoPesosCotiAnterior ,  
-        montoUFCotiAnterior)
+        montoUFCotiAnterior,
+        totalPlanesAPV,
+        nroMesesAbonoCCIAV)
         SELECT
           dpi.id
         , dp.id idPersona
@@ -459,6 +533,8 @@ BEGIN
         , indTerminoRelacionLaboral
         , montoPesosCotiAnterior  
         , montoUFCotiAnterior
+        , totalPlanesAPV
+        , nroMesesAbonoCCIAV
         FROM #universoFinal a
             INNER JOIN DMGestion.Dimpersona dp ON dp.rut = a.rut
                 AND dp.fechaVigencia >= ldtMaximaFechaVigencia
@@ -480,3 +556,5 @@ BEGIN
         CALL DMGestion.registrarErrorProceso(cstNombreProcedimiento, lstCodigoError);*/
 
 END
+
+
