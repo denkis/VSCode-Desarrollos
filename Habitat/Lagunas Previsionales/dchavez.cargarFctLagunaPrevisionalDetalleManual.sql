@@ -1,4 +1,4 @@
-ALTER  PROCEDURE dchavez.cargarFctLagunaPrevisionalDetalleManual(IN periodoInformar date,OUT codigoError VARCHAR(10))
+create PROCEDURE dchavez.cargarFctLagunaPrevisionalDetalleManual(IN periodoInformar date,OUT codigoError VARCHAR(10))
 BEGIN
 /**
         - Nombre archivo                            : cargarFctAfiliadoCotizanteManual.sql
@@ -556,5 +556,3 @@ BEGIN
         CALL DMGestion.registrarErrorProceso(cstNombreProcedimiento, lstCodigoError);*/
 
 END
-
-
