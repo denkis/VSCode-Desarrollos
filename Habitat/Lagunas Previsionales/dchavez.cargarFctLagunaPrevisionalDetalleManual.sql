@@ -1,4 +1,4 @@
-create PROCEDURE dchavez.cargarFctLagunaPrevisionalDetalleManual(IN periodoInformar date,OUT codigoError VARCHAR(10))
+ALTER  PROCEDURE dchavez.cargarFctLagunaPrevisionalDetalleManual(IN periodoInformar date,OUT codigoError VARCHAR(10))
 BEGIN
 /**
         - Nombre archivo                            : cargarFctAfiliadoCotizanteManual.sql
@@ -294,16 +294,11 @@ BEGIN
         DROP TABLE #FinLaguna;
     
     
-        ---------INDICADOR DE VIGENCIA ULTIMA LAGUNA
-    
-        UPDATE #universoFinal
-        SET indVigenciaUltimaLaguna = CASE WHEN fechaTerminoLaguna IS NULL THEN 'Si' ELSE 'No' END;
+        ---------NUMERO DE MESES DE LA LAGUNA
         
         UPDATE  #universoFinal
         SET nroMesesLaguna = DATEDIFF(mm,fechaInicioLaguna,ISnull(fechaTerminoLaguna,ldtFechaPeriodoInformado))+1
         WHERE ClasificacionPersona = 'Afiliado';
-    
-        ---------NUMERO DE MESES DE LA LAGUNA
     
         UPDATE  #universoFinal
         SET nroMesesLaguna = DATEDIFF(mm,fechaInicioLaguna,FechaPension)+1 ,
@@ -315,6 +310,10 @@ BEGIN
         SET nroMesesLaguna = DATEDIFF(mm,fechaInicioLaguna,fechaTerminoLaguna)+1
         WHERE ClasificacionPersona = 'Pensionado'
         AND indVigenciaUltimaLaguna = 'No';
+    
+         ---------INDICADOR DE VIGENCIA ULTIMA LAGUNA
+        UPDATE #universoFinal
+        SET indVigenciaUltimaLaguna = CASE WHEN fechaTerminoLaguna IS NULL THEN 'Si' ELSE 'No' END;
     
     
          MESSAGE 'PRODUCTOS VOLUNTARIOS' TO client;
