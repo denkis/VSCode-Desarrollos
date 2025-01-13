@@ -667,7 +667,7 @@ BEGIN
                                                    cinMovimientoCCICO3)
                 AND b.fec_movimiento > a.fec_movimiento;
 
-                --Tipo de Cobertura SIS
+                //*TIPO DE COBERTURUA SIS*//
                 --Universo Afiliados Activos
                 SELECT up.id_mae_persona,
                     dp.fechaNacimiento,
