@@ -2453,7 +2453,7 @@ BEGIN
              UPDATE #UniversoRegistroTMP SET
                 a.montoPafeUF    = cnuMontoPAFECero ,
                 a.signoMontoPafe = cchBlanco ,
-                indPafe = 'No'
+                indPafe = cchNo
             FROM #UniversoRegistroTMP a
                 INNER JOIN #rentasVitalicias c ON (a.rut = c.rut);
         
