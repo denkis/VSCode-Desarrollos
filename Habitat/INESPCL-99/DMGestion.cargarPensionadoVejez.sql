@@ -1,4 +1,4 @@
-create PROCEDURE DMGestion.cargarPensionadoVejez(OUT cantRegRegistrados BIGINT, OUT codigoError VARCHAR(10))
+create PROCEDURE dchavez.cargarPensionadoVejez(OUT cantRegRegistrados BIGINT, OUT codigoError VARCHAR(10))
 BEGIN
     /**
         - Nombre archivo                            : cargarPensionadoVejez.sql
@@ -44,6 +44,10 @@ BEGIN
     DECLARE ctiCero                             TINYINT;
     DECLARE ctiUno                              TINYINT;
     DECLARE ctiDos                              TINYINT;
+    DECLARE ctiTres                             TINYINT;
+    DECLARE ctiCuatro                           TINYINT;
+    DECLARE ctiCinco                            TINYINT;
+    DECLARE ctiSeis                             TINYINT;
     DECLARE cdtFecha01IndScomp                  DATE;
     DECLARE cdtFecha02IndScomp                  DATE;
     DECLARE ctiCodTipoCalcFajuSim               TINYINT;
@@ -114,6 +118,10 @@ BEGIN
     SET ctiCero                     = 0;
     SET ctiUno                      = 1; 
     SET ctiDos                      = 2;
+    SET ctiTres                     = 3;
+    SET ctiCuatro                   = 4;
+    SET ctiCinco                    = 5;
+    SET ctiSeis                     = 6;
     SET cdtFecha01IndScomp          = DATE('2009-07-01');
     SET cdtFecha02IndScomp          = DATE('2004-08-19');
     SET ctiCodTipoCalcFajuSim       = 2;
@@ -200,13 +208,13 @@ BEGIN
     -------------------------------------------------------------------------------------------------------------
     --UNIVERSOS
     -------------------------------------------------------------------------------------------------------------
-    CALL DMGestion.cargarUniversoVejezTMP(codigoError);
+    CALL dchavez.cargarUniversoVejezTMP(codigoError);
 
         
     IF (codigoError = cstCodigoErrorCero) THEN
         --9. Movimientos 87 del universo 1
         --Se Obtiene Universo de los movimientos 87 (Pago Prima Renta Vitalicia)
-        CALL DMGestion.cargarUniversoMovimientosRVTMP(ldtFechaPeriodoInformado, codigoError);
+        CALL dchavez.cargarUniversoMovimientosRVTMP(ldtFechaPeriodoInformado, codigoError);
         
         IF (codigoError = cstCodigoErrorCero) THEN
             --4. Indicador artículo 69 - Campo 5
@@ -216,7 +224,7 @@ BEGIN
                 b.fecsol
             INTO #SLB_BENEFICIOS_CONDICION
             FROM DDS.SLB_BENEFICIOS b
-                INNER JOIN DmGestion.UniversoVejezTMP u1 ON (b.numcue = u1.numcue 
+                INNER JOIN dchavez.UniversoVejezTMP u1 ON (b.numcue = u1.numcue 
                 AND b.tipoben = u1.tipoben 
                 AND b.fecsol = u1.fecsol)
             WHERE u1.numeroUniverso = 1
@@ -254,7 +262,7 @@ BEGIN
                 p.saldo_final_uf
             INTO #STP_PENCERSA_CONDICION_U1
             FROM DDS.STP_PENCERSA p
-                INNER JOIN DMGestion.UniversoVejezTMP u ON (u.numcue = p.numcue AND u.tipoben = p.tipoben AND u.fecsol = p.fecsol)
+                INNER JOIN dchavez.UniversoVejezTMP u ON (u.numcue = p.numcue AND u.tipoben = p.tipoben AND u.fecsol = p.fecsol)
                 LEFT JOIN DDS.STP_SOLICPEN s ON (s.numcue = p.numcue AND s.tipoben = p.tipoben AND s.fecsol = p.fecsol )             
             WHERE u.numeroUniverso = 1
             AND p.modpen_selmod IS NOT NULL;
@@ -266,7 +274,7 @@ BEGIN
                    fc.fec_calculo
             INTO #FichasCalculoMF
             FROM DDS.SLB_FICHAS_CALCULO_MF fc
-                INNER JOIN DMGestion.UniversoVejezTMP u ON u.numcue = fc.numcue 
+                INNER JOIN dchavez.UniversoVejezTMP u ON u.numcue = fc.numcue 
                 AND u.tipoben = fc.tipoben_stp
                 AND u.fecsol = fc.fecsol
             WHERE fc.tipo_ficha = 'RP'
@@ -303,7 +311,7 @@ BEGIN
                         ISNULL(r.cod_region, '00')
                  END) codigoRegionSolicitaPension
             INTO #RegionSolicitaPensionTMP
-            FROM DMGestion.UniversoVejezTMP u1
+            FROM dchavez.UniversoVejezTMP u1
                 INNER JOIN DDS.TB_DIRECCION_SUCURSAL s ON (u1.sucursal_origen = s.id_sucursal)
                 INNER JOIN DDS.TB_COD_REGION r ON (s.id_cod_region = r.id_cod_region)
             WHERE u1.numeroUniverso = 1;
@@ -312,9 +320,9 @@ BEGIN
 			--- DATAWCL-383
             SELECT u.rut,u.idDimPersona,fpi.fecPrimerPagoPensionDef,fpi.fechaSolicitud
             INTO #UniversoFechaAnterior
-            FROM DMGestion.UniversoVejezTMP u
+            FROM dchavez.UniversoVejezTMP u
             INNER JOIN DMGestion.DimPersona dp ON dp.rut = u.rut
-            INNER JOIN DMGestion.FctPensionadoInvalidezVejez fpi ON fpi.idPersona = dp.id
+            INNER JOIN dchavez.FctPensionadoInvalidezVejez fpi ON fpi.idPersona = dp.id
             WHERE u.indFechaMes = 'N'
             AND u.fecsol = fpi.fechaSolicitud
             AND fpi.idPeriodoInformado = linIdPeriodoInformarAnterior;
@@ -329,7 +337,7 @@ BEGIN
                 d.fec_liquidacion
             INTO #SLB_DOCUPAGO_U1
             FROM DDS.SLB_DOCUPAGO d
-                INNER JOIN DmGestion.UniversoVejezTMP u ON u.numcue = d.numcue 
+                INNER JOIN dchavez.UniversoVejezTMP u ON u.numcue = d.numcue 
                 AND u.tipoben = d.tipoben 
                 AND u.fecsol = d.fecsol
             WHERE u.numeroUniverso = 1
@@ -468,7 +476,7 @@ BEGIN
                 CONVERT(BIGINT, NULL) idError,
                 u1.fechaDefuncion
             INTO #DatosRegistrar_Universo_1
-            FROM DMGestion.UniversoVejezTMP u1
+            FROM dchavez.UniversoVejezTMP u1
                 LEFT OUTER JOIN #IndicadorArt69Universo1 ia67 ON (u1.numcue = ia67.numcue
                 AND ia67.tipoben = u1.tipoben 
                 AND ia67.fecsol = u1.fecsol)
@@ -533,7 +541,7 @@ BEGIN
                 u.codigoModalidadPension = '01',
                 u.codigoModalidadAFP = 3
             FROM #DatosRegistrar_Universo_1 u
-                JOIN DMGestion.UniversoMovimientosRVTMP m ON (u.idPersonaOrigen = m.id_mae_persona)
+                JOIN dchavez.UniversoMovimientosRVTMP m ON (u.idPersonaOrigen = m.id_mae_persona)
             WHERE u.codigoModalidadPension = '0'
             AND u.fecsol >= '1996-01-01'
             AND m.fec_movimiento >= u.fecsol;
@@ -606,7 +614,7 @@ BEGIN
                 d.codigo codigoModalidadPension,
                 a.codigoModalidadAFP
             INTO #ModalidadPensionInvalidezTMP
-            FROM DMGestion.FctPensionadoInvalidezVejez a
+            FROM dchavez.FctPensionadoInvalidezVejez a
                 INNER JOIN DMGestion.DimPersona b ON (a.idPersona = b.id)
                 INNER JOIN DMGestion.DimTipoPension c ON (a.idTipoPension = c.id)
                 INNER JOIN DMGestion.DimModalidadPension d ON (a.idModalidadPension = d.id)
@@ -1316,14 +1324,14 @@ BEGIN
             --Primera pensión defenitiva
             ----------------------------------------
             --SALDOS
-            CALL DMGestion.cargarUniversoSaldoPensionTMP();
+            CALL dchavez.cargarUniversoSaldoPensionTMP();
            
             SELECT numcue,
                 tipoben,
                 fecsol,
                 SUM(montoPensionUF) montoPensionUF
             INTO #MontoPensionRPUFPencersaTMP
-            FROM DMGestion.UniversoSaldoPensionTMP
+            FROM dchavez.UniversoSaldoPensionTMP
             WHERE indicador = 'PER4'
             GROUP BY numcue, tipoben, fecsol;
     
@@ -1768,7 +1776,7 @@ BEGIN
     
             SELECT MAX(numeroFila) AS maxNroFila
             INTO lbiMaxNumeroFila
-            FROM DMGestion.FctPensionadoInvalidezVejez
+            FROM dchavez.FctPensionadoInvalidezVejez
             WHERE idPeriodoInformado = linIdPeriodoInformar;
 
             UPDATE #UniversoRegistroTMP u SET
@@ -1908,7 +1916,7 @@ BEGIN
             DROP TABLE #TB_MAE_MOVIMIENTO;
             DROP TABLE #MaximoPerCot;
             DROP TABLE #RentaImponibleTMP;
-            DROP TABLE DMGestion.UniversoVejezTMP;
+            DROP TABLE dchavez.UniversoVejezTMP;
  
             UPDATE #UniversoRegistroTMP SET     
                 a.indicadorArt17                    = (CASE WHEN b.indArticulo17 IS NOT NULL                THEN b.indArticulo17                ELSE a.indicadorArt17                       END),
@@ -2102,7 +2110,7 @@ BEGIN
                     uT.saldoUF, --SALDO CCICO UF
                     uT.indicador
                 FROM #UniversoTMP u
-                    INNER JOIN DMGestion.UniversoSaldoPensionTMP uT ON u.numcue = uT.numcue
+                    INNER JOIN dchavez.UniversoSaldoPensionTMP uT ON u.numcue = uT.numcue
                     AND u.fecsol = uT.fecsol
                     AND u.tipoben = uT.tipoben
                 WHERE uT.indicador = 'PER4'
@@ -2140,7 +2148,7 @@ BEGIN
                     uT.saldoUF, --SALDO CCICO UF
                     uT.indicador
                 FROM #UniversoTMP u
-                    INNER JOIN DMGestion.UniversoSaldoPensionTMP uT ON u.numcue = uT.numcue
+                    INNER JOIN dchavez.UniversoSaldoPensionTMP uT ON u.numcue = uT.numcue
                     AND u.fecsol = uT.fecsol
                     AND u.tipoben = uT.tipoben
                 WHERE uT.indicador = 'FICH'
@@ -2311,7 +2319,9 @@ BEGIN
                indScomp = 'N'
             WHERE fechaEmisionCersal IS NULL;
 
+        /********** PAFE ***********************/
             --INI Jira - INFESP-93
+
             UPDATE #UniversoRegistroTMP SET
                 a.montoPafeUF           = ISNULL(b.mnto_pafe, cnuMontoPAFECero),
                 a.signoMontoPafe        = (CASE
@@ -2320,29 +2330,41 @@ BEGIN
                                                 ELSE 
                                                     cchSignoMas
                                            END),
-                a.indMontoPafeTablaHist = cchS
+                a.indMontoPafeTablaHist = cchS,
+                indPafe = cchIndPafeSi
             FROM #UniversoRegistroTMP a
                 JOIN DDS.TN_PAFEACTUALIZADA b ON (a.rut = b.nmro_rutafi);
             
-            --Gchavez CGI 08-05-2014 (+)
-            --Actualizar Monto PAFE y Signo PAFE
+            /********** PAFE DESDE PLANILLA HISTORICA ***********************/          
+            
+            SELECT rutAfiliado,
+            MAX(periodoInformado) periodoInformado
+            INTO #PlanillaPAFETMP1
+            FROM DDS.PlanillaPAFE
+            WHERE tipoAfiliado IN (0,1, 2)
+            --AND montoPafeUF > 0.0
+            GROUP BY rutAfiliado; 
+
             UPDATE #UniversoRegistroTMP SET
-                a.montoPafeUF    = ISNULL(b.montoPafeUF, cnuMontoPAFECero),
+                a.montoPafeUF    = CASE WHEN b.montoPafeUF = NULL THEN cnuMontoPAFECero
+                                       WHEN b.signoMontoPafe = '-' THEN cnuMontoPAFECero
+                                       ELSE b.montoPafeUF END ,
                 a.signoMontoPafe = (CASE
-                                        WHEN b.signoMontoPafe = cchSignoMas THEN
-                                            b.signoMontoPafe
-                                        ELSE
-                                            cchSignoMas
-                                    END)
+                                        WHEN b.signoMontoPafe = '+' THEN b.signoMontoPafe
+                                        WHEN b.signoMontoPafe = '-' THEN 'X'
+                                        ELSE '+'
+                                    END),
+               indPafe = cchIndPafeSi
             FROM #UniversoRegistroTMP a
-                JOIN DDS.PlanillaPAFE b ON (a.rut = b.rutAfiliado )
-            WHERE b.tipoAfiliado IN (ctiCero, ctiUno, ctiDos)
+                INNER JOIN #PlanillaPAFETMP1 c ON (a.rut = c.rutAfiliado)
+                INNER JOIN DDS.PlanillaPAFE b ON (a.rut = b.rutAfiliado AND b.periodoInformado = c.periodoInformado)
+            WHERE b.tipoAfiliado IN (0, 1, 2)
             AND a.indMontoPafeTablaHist = cchN;
-            --Gchavez CGI 08-05-2014 (-)
     
             --INICIO - IESP-235
             --Campo: Monto y Signo PAFE
             --Si se modifico el monto PAFE, se debe de obtener desde la planilla MODPAFE
+
             SELECT rutBenef,
                 MAX(periodoInformado) periodoInformado
             INTO #PlanillaMODPAFETMP
@@ -2352,13 +2374,15 @@ BEGIN
             GROUP BY rutBenef;
     
             UPDATE #UniversoRegistroTMP SET
-                a.montoPafeUF = ISNULL(b.montoPafeUF, cnuMontoPAFECero),
+                a.montoPafeUF = CASE WHEN b.montoPafeUF = NULL THEN cnuMontoPAFECero
+                                       WHEN b.signoMontoPafe = '-' THEN cnuMontoPAFECero
+                                       ELSE b.montoPafeUF END ,
                 a.signoMontoPafe = (CASE
-                                        WHEN b.signoMontoPafe = cchSignoMas THEN
-                                            b.signoMontoPafe
-                                        ELSE
-                                            cchSignoMas
-                                    END)
+                                        WHEN b.signoMontoPafe = cchSignoMas THEN b.signoMontoPafe
+                                        WHEN b.signoMontoPafe = '-' THEN 'X'
+                                        ELSE cchSignoMas
+                                    END),
+                indPafe = cchIndPafeSi
             FROM #UniversoRegistroTMP a
                 JOIN #PlanillaMODPAFETMP c ON (a.rut = c.rutBenef)
                 JOIN DDS.PlanillaMODPAFE b ON (c.rutBenef = b.rutBenef
@@ -2366,6 +2390,11 @@ BEGIN
             WHERE b.tipoAfiliado IN (ctiCero, ctiUno, ctiDos)
             AND b.montoPafeUF > cnuMontoPAFECero
             AND a.indMontoPafeTablaHist = cchN;
+
+            --ACTUALIZA SIGNO PARA LAS PAFES HISTORICAS NEGATIVAS
+            UPDATE  #UniversoRegistroTMP 
+            SET signoMontoPafe = cchSignoMas
+            WHERE signoMontoPafe = 'X';
            
             --TERMINO - IESP-235
 
@@ -2374,14 +2403,16 @@ BEGIN
             --   No informa PAFE para aquellos pensionados con menos de 65 años, a excepción que sean pensionados por trabajo pesado.
             UPDATE #UniversoRegistroTMP SET
                 montoPafeUF     = cnuMontoPAFECero,
-                signoMontoPafe  = cchBlanco
+                signoMontoPafe  = cchBlanco,
+                indPafe = cchIndPafeNo
             WHERE indicadorArt68bis = cchN
             AND SEXO = cchSexoMasculino
             AND edadMesInforme < ctiEdadLegalPensionarseMasculino;
            
             UPDATE #UniversoRegistroTMP SET
                 montoPafeUF     = cnuMontoPAFECero,
-                signoMontoPafe  = cchBlanco
+                signoMontoPafe  = cchBlanco,
+                indPafe = cchIndPafeNo
             WHERE indicadorArt68bis = cchN
             and SEXO = cchSexoFemenino
             AND edadMesInforme < ctiEdadLegalPensionarseFemenino;
@@ -2390,7 +2421,8 @@ BEGIN
             --   No informar PAFE para aquellos pensionados por vejez que seleccionaron modalidad de renta vitalicia antes de 01-07-2008.
             UPDATE #UniversoRegistroTMP SET
                 montoPafeUF     = cnuMontoPAFECero,
-                signoMontoPafe  = cchBlanco
+                signoMontoPafe  = cchBlanco,
+                indPafe = cchIndPafeNo
             WHERE fecsol < cdt20080701
             AND codigoModalidadPension IN (cchCodigoModalidadPension01,
                                            cchCodigoModalidadPension02,
@@ -2401,9 +2433,50 @@ BEGIN
                                            cchCodigoModalidadPension07);
             --TEMINO - INFESP-273
 
-            UPDATE #UniversoRegistroTMP SET 
-                indPafe = cchIndPafeSi
-            WHERE signoMontoPafe = cchSignoMas;
+            SELECT dp.rut,fechaSolicitud, fechaMovimiento, dtp.codigo
+                INTO #rentasVitalicias
+            FROM DMGestion.FctRentasVitaliciasContratadas frv
+                INNER JOIN DMGestion.DimPersona dp ON dp.id = frv.idPersona
+                INNER JOIN DMGestion.DimPeriodoInformado dpi ON dpi.id = frv.idPeriodoInformado
+                INNER JOIN DMGestion.DimTipoPension dtp ON dtp.id = frv.idTipoPension AND dtp.codigo IN ('01','02')
+                INNER JOIN #UniversoRegistroTMP b ON dp.rut = b.rut
+            WHERE dpi.fecha = '20240701'
+            AND fechaSolicitud < '20080701';                           
+
+        
+             UPDATE #UniversoRegistroTMP SET
+                a.montoPafeUF    = 0 ,
+                a.signoMontoPafe = ' ',
+             indPafe = 'No'
+            FROM #UniversoRegistroTMP a
+                INNER JOIN #rentasVitalicias c ON (a.rut = c.rut);
+        
+            --TEMINO - INFESP-273
+                                       
+            --RENTA VITALICIA
+                                          
+            SELECT ss.NUMCUE,ss.FECSOL  
+                INTO #cambioModalidad
+            FROM DDS.STP_SOLICPEN ss
+                INNER JOIN #UniversoRegistroTMP tmp ON ss.NUMCUE = tmp.numcue
+            WHERE ss.TIPOBEN = 12    
+                AND ss.FECSOL < cdt20080701
+                AND ss.CODESTSOL = 2
+                AND ss.FECSOL < tmp.fecsol;
+                              
+            SELECT numrut  
+                INTO #CMconRV
+            FROM #cambioModalidad cm
+                INNER JOIN DDS.SLB_MONTOBEN sm ON sm.numcue = cm.numcue AND cm.FECSOL = sm.fecsol
+            WHERE sm.modalidad IN (1,2,3,4,5,6);
+            
+        
+            UPDATE #UniversoRegistroTMP SET
+                montoPafeUF     = cnuMontoPAFECero,
+                signoMontoPafe  = cchBlanco,
+                indPafe = cchIndPafeNo
+            FROM #UniversoRegistroTMP a
+            INNER JOIN #CMconRV rv ON a.rut = rv.numrut;
    
        /************* INESP-4233  *************/     
        SELECT rut INTO #estadoNoPerfeccionado 
@@ -2427,8 +2500,8 @@ BEGIN
             -- Fin Inicio Indicador PAFE
             ------------------------------------------------------------------------------------------- 
     
-            DROP TABLE DMGestion.UniversoSaldoPensionTMP;
-            DROP TABLE DMGestion.UniversoMovimientosRVTMP;
+            DROP TABLE dchavez.UniversoSaldoPensionTMP;
+            DROP TABLE dchavez.UniversoMovimientosRVTMP;
 
             --20.11. Actualiza la Remuneración imponible asociada a la última cotización anterior a la fecha 
             --       de la solicitud de pensión, por ser mayor a 99.99 UF el cual queda marcado como error
@@ -2439,7 +2512,7 @@ BEGIN
             ---------------------------------------------------
             --21. Se registra en la FctPensionadoInvalidezVejez
             ---------------------------------------------------         
-            INSERT INTO DMGestion.FctPensionadoInvalidezVejez(idPeriodoInformado,
+            INSERT INTO dchavez.FctPensionadoInvalidezVejez(idPeriodoInformado,
                 idTipoProceso, 
                 idPersona, 
                 idTipoPension,
