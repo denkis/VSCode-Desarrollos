@@ -48,6 +48,7 @@ BEGIN
     DECLARE ctiCuatro                           TINYINT;
     DECLARE ctiCinco                            TINYINT;
     DECLARE ctiSeis                             TINYINT;
+    DECLARE ctiDoce                             TINYINT;
     DECLARE cdtFecha01IndScomp                  DATE;
     DECLARE cdtFecha02IndScomp                  DATE;
     DECLARE ctiCodTipoCalcFajuSim               TINYINT;
@@ -67,7 +68,9 @@ BEGIN
     DECLARE cchSeis                             CHAR(2);
     DECLARE cchN                                CHAR(1);
     DECLARE cchS                                CHAR(1);
+    DECLARE cchX                                CHAR(1);
     DECLARE cchSignoMas                         CHAR(1);
+    DECLARE cchSignoMenos                       CHAR(1);
     DECLARE cchCodigoSinClasificar              CHAR(2);
     DECLARE cchCodigoModalidadPension00         CHAR(2);
     DECLARE cchCodigoModalidadPension01         CHAR(2);
@@ -108,7 +111,7 @@ BEGIN
     -------------------------------------------------------------------------------------------
     --Seteo de Constantes
     -------------------------------------------------------------------------------------------
-    SET cstOwner                            = 'DMGestion';
+    SET cstOwner                    = 'DMGestion';
     SET cstNombreProcedimiento      = 'cargarPensionadoVejez';
     SET cstNombreTablaFct           = 'FctPensionadoInvalidezVejez';
     SET cchCodigoTramiteVejInv      = '03';
@@ -122,6 +125,7 @@ BEGIN
     SET ctiCuatro                   = 4;
     SET ctiCinco                    = 5;
     SET ctiSeis                     = 6;
+    SET ctiDoce                     = 12;
     SET cdtFecha01IndScomp          = DATE('2009-07-01');
     SET cdtFecha02IndScomp          = DATE('2004-08-19');
     SET ctiCodTipoCalcFajuSim       = 2;
@@ -141,7 +145,9 @@ BEGIN
     SET cchSeis                     = '06';
     SET cchN                        = 'N';
     SET cchS                        = 'S';
+    SET cchX                        = 'X';
     SET cchSignoMas                 = '+';
+    SET cchSignoMenos               = '-';
     SET cchCodigoSinClasificar      = '0';
     SET cchCodigoModalidadPension00 = '00';
     SET cchCodigoModalidadPension05 = '05';
@@ -1083,7 +1089,7 @@ BEGIN
                 CONVERT(NUMERIC(7, 2), 0.0) montoPensionTransitoriaUF,
                 CONVERT(CHAR(1), 'N') indResolReposicionEjec,
                 CONVERT(NUMERIC(6, 2), cnuMontoPAFECero) montoPafeUF,
-                CONVERT(CHAR(1), ' ') signoMontoPafe,
+                CONVERT(CHAR(1),cchBlanco) signoMontoPafe,
                 cchIndPafeNo                AS indPafe, -- Nuevo Campo Oficio 22.178, JIRA INFESP72
                 u.montoPrimPensDefRTUF,
                 CONVERT(DATE, NULL) fechaCierre,
@@ -2341,24 +2347,24 @@ BEGIN
             MAX(periodoInformado) periodoInformado
             INTO #PlanillaPAFETMP1
             FROM DDS.PlanillaPAFE
-            WHERE tipoAfiliado IN (0,1, 2)
+            WHERE tipoAfiliado IN (ctiCero,ctiUno, ctiDos)
             --AND montoPafeUF > 0.0
             GROUP BY rutAfiliado; 
 
             UPDATE #UniversoRegistroTMP SET
                 a.montoPafeUF    = CASE WHEN b.montoPafeUF = NULL THEN cnuMontoPAFECero
-                                       WHEN b.signoMontoPafe = '-' THEN cnuMontoPAFECero
+                                       WHEN b.signoMontoPafe = cchSignoMenos THEN cnuMontoPAFECero
                                        ELSE b.montoPafeUF END ,
                 a.signoMontoPafe = (CASE
-                                        WHEN b.signoMontoPafe = '+' THEN b.signoMontoPafe
-                                        WHEN b.signoMontoPafe = '-' THEN 'X'
-                                        ELSE '+'
+                                        WHEN b.signoMontoPafe = cchSignoMas THEN b.signoMontoPafe
+                                        WHEN b.signoMontoPafe = cchSignoMenos THEN cchX
+                                        ELSE cchSignoMas
                                     END),
                indPafe = cchIndPafeSi
             FROM #UniversoRegistroTMP a
                 INNER JOIN #PlanillaPAFETMP1 c ON (a.rut = c.rutAfiliado)
                 INNER JOIN DDS.PlanillaPAFE b ON (a.rut = b.rutAfiliado AND b.periodoInformado = c.periodoInformado)
-            WHERE b.tipoAfiliado IN (0, 1, 2)
+            WHERE b.tipoAfiliado IN (ctiCero,ctiUno, ctiDos)
             AND a.indMontoPafeTablaHist = cchN;
     
             --INICIO - IESP-235
@@ -2375,11 +2381,11 @@ BEGIN
     
             UPDATE #UniversoRegistroTMP SET
                 a.montoPafeUF = CASE WHEN b.montoPafeUF = NULL THEN cnuMontoPAFECero
-                                       WHEN b.signoMontoPafe = '-' THEN cnuMontoPAFECero
+                                       WHEN b.signoMontoPafe = cchSignoMenos THEN cnuMontoPAFECero
                                        ELSE b.montoPafeUF END ,
                 a.signoMontoPafe = (CASE
                                         WHEN b.signoMontoPafe = cchSignoMas THEN b.signoMontoPafe
-                                        WHEN b.signoMontoPafe = '-' THEN 'X'
+                                        WHEN b.signoMontoPafe = cchSignoMenos THEN cchX
                                         ELSE cchSignoMas
                                     END),
                 indPafe = cchIndPafeSi
@@ -2394,7 +2400,7 @@ BEGIN
             --ACTUALIZA SIGNO PARA LAS PAFES HISTORICAS NEGATIVAS
             UPDATE  #UniversoRegistroTMP 
             SET signoMontoPafe = cchSignoMas
-            WHERE signoMontoPafe = 'X';
+            WHERE signoMontoPafe = cchX;
            
             --TERMINO - IESP-235
 
@@ -2438,16 +2444,16 @@ BEGIN
             FROM DMGestion.FctRentasVitaliciasContratadas frv
                 INNER JOIN DMGestion.DimPersona dp ON dp.id = frv.idPersona
                 INNER JOIN DMGestion.DimPeriodoInformado dpi ON dpi.id = frv.idPeriodoInformado
-                INNER JOIN DMGestion.DimTipoPension dtp ON dtp.id = frv.idTipoPension AND dtp.codigo IN ('01','02')
+                INNER JOIN DMGestion.DimTipoPension dtp ON dtp.id = frv.idTipoPension AND dtp.codigo IN (cchUno,cchDos)
                 INNER JOIN #UniversoRegistroTMP b ON dp.rut = b.rut
-            WHERE dpi.fecha = '20240701'
-            AND fechaSolicitud < '20080701';                           
+            WHERE dpi.fecha = ldtFechaPeriodoInformado
+            AND fechaSolicitud < cdt20080701;                           
 
         
              UPDATE #UniversoRegistroTMP SET
-                a.montoPafeUF    = 0 ,
-                a.signoMontoPafe = ' ',
-             indPafe = 'No'
+                a.montoPafeUF    = cnuMontoPAFECero ,
+                a.signoMontoPafe = cchBlanco ,
+                indPafe = 'No'
             FROM #UniversoRegistroTMP a
                 INNER JOIN #rentasVitalicias c ON (a.rut = c.rut);
         
@@ -2459,16 +2465,16 @@ BEGIN
                 INTO #cambioModalidad
             FROM DDS.STP_SOLICPEN ss
                 INNER JOIN #UniversoRegistroTMP tmp ON ss.NUMCUE = tmp.numcue
-            WHERE ss.TIPOBEN = 12    
+            WHERE ss.TIPOBEN = ctiDoce    
                 AND ss.FECSOL < cdt20080701
-                AND ss.CODESTSOL = 2
+                AND ss.CODESTSOL = ctiDos
                 AND ss.FECSOL < tmp.fecsol;
                               
             SELECT numrut  
                 INTO #CMconRV
             FROM #cambioModalidad cm
                 INNER JOIN DDS.SLB_MONTOBEN sm ON sm.numcue = cm.numcue AND cm.FECSOL = sm.fecsol
-            WHERE sm.modalidad IN (1,2,3,4,5,6);
+            WHERE sm.modalidad IN (ctiUno, ctiDos,ctiTres,ctiCuatro,ctiCinco,ctiSeis);
             
         
             UPDATE #UniversoRegistroTMP SET
