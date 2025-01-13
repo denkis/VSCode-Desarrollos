@@ -3652,7 +3652,7 @@ BEGIN
             AND a.indMontoPafeTablaHist = cchN;
             --FIN Jira - INFESP-93
     
-    |UPDATE  #UniversoRegistroTMP 
+            UPDATE  #UniversoRegistroTMP 
             SET signoMontoPafe = cchSignoMas
             WHERE signoMontoPafe = cchX;
         
@@ -3704,7 +3704,7 @@ BEGIN
                 INTO #CMconRV
             FROM #cambioModalidad cm
                 INNER JOIN DDS.SLB_MONTOBEN sm ON sm.numcue = cm.numcue AND cm.FECSOL = sm.fecsol
-            WHERE sm.modalidad IN (tiUno, ctiDos,ctiTres,ctiCuatro,ctiCinco,ctiSeis);
+            WHERE sm.modalidad IN (ctiUno, ctiDos,ctiTres,ctiCuatro,ctiCinco,ctiSeis);
             
            
             UPDATE #UniversoRegistroTMP SET
