@@ -1,4 +1,4 @@
-ALTER  PROCEDURE DMGestion.cargarUniversoCubiertoSeguroTMP(OUT codigoError VARCHAR(10))
+ALTER PROCEDURE DMGestion.cargarUniversoCubiertoSeguroTMP(OUT codigoError VARCHAR(10))
 BEGIN
 
 -------------------------------------------------------------------------------------------
@@ -210,6 +210,19 @@ BEGIN
                 AND up.esUniversoCuadro1 = 'S'
                 AND up.id_tip_estado_rol = 1 --Afiliado
                 AND up.codigoTipoRol = 1; --Persona
+                
+                /*UNIVERSO DE DECLARACIONES DE NO PAGO*/
+                SELECT DISTINCT tdd.NUM_RUT rut,b.FEC_PERIODO_COTIZ periodoCotizado, ID_MAE_PERSONA
+                INTO #DNP
+                FROM DDS.TB_DET_DEUDA tdd 
+                INNER JOIN (SELECT ID_DEUDA,FEC_PERIODO_COTIZ 
+                            FROM DDS.TB_DEUDA td 
+                            WHERE ID_ORIGEN_DEUDA = 1 
+                            AND FEC_PERIODO_COTIZ >= DATEADD(MM,-24,ldtFechaPeriodoInformado)) b ON tdd.ID_DEUDA  = b.id_deuda
+                INNER JOIN (SELECT ID_DET_DEUDA 
+                            FROM DDS.TB_DET_DEUDA_CONCEPTO tddc 
+                            WHERE ID_TIP_CONCEPTO = 164 )dc ON tdd.ID_DET_DEUDA = dc.ID_DET_DEUDA
+                WHERE rut IN (SELECT DISTINCT RUT FROM #UniversoAfiliadosActivosTMP);
 
                 
                 --UNIVERSO DE MOVIMIENTOS DE PAGO DE SIS
@@ -228,6 +241,20 @@ BEGIN
                 WHERE vc.codigoTipoProducto IN (1,6) --productos CCICO y CCIAV
                 AND vc.codTrafil02 IN (11020,11073,11105,11107,61003 ); --Movimientos Pago de Seguro
 
+                
+                /***** UNIVERSO DE MOVIMIENTOS DNPA CONSIDERAR ****/
+                SELECT b.id_mae_persona,
+                    dn.rut,
+                    b.fechaNacimiento,
+                    b.sexo,
+                    max(dn.periodoCotizado)ultimoPerCot
+                INTO  #UniversoDNP
+                FROM #DNP dn
+                    INNER JOIN #UniversoAfiliadosActivosTMP b ON dn.rut = b.rut
+                GROUP BY b.id_mae_persona,
+                        dn.rut,
+                        fechaNacimiento,
+                        sexo;
                 
                 
                 --UNIVERSO 1: Cotizantes del Mes con Pago a Seguro- Afiliados Activos
@@ -248,11 +275,25 @@ BEGIN
                     up.sexo;
                 
          
+                SELECT a.id_mae_persona, a.rut, a.fechaNacimiento, a.sexo, max(a.ultimoPerCot)ultimoPerCot 
+                INTO #Universo1TipoCoberturaTMPDNP
+                FROM 
+                (SELECT a.id_mae_persona, a.rut, a.fechaNacimiento, a.sexo, a.ultimoPerCot
+                FROM #Universo1TipoCoberturaTMP a
+                LEFT OUTER JOIN #UniversoDNP b ON a.rut = b.rut 
+                WHERE b.rut IS NULL
+                UNION 
+                SELECT a.id_mae_persona, a.rut, a.fechaNacimiento, a.sexo, a.ultimoPerCot
+                FROM #Universo1TipoCoberturaTMP a
+                INNER JOIN #UniversoDNP b ON a.rut = b.rut 
+                WHERE b.ultimoPerCot > a.ultimoPerCot)a
+                GROUP BY a.id_mae_persona, a.rut, a.fechaNacimiento, a.sexo;
+                
 
                 SELECT ultimoPerCot, 
                     DMGestion.obtenerUltimaFechaMes(ultimoPerCot) ultimaFechaMesPerCot
                 INTO #UltimaFechaMesPerCotTMP
-                FROM #Universo1TipoCoberturaTMP
+                FROM #Universo1TipoCoberturaTMPDNP
                 GROUP BY ultimoPerCot;
 
                 --UNIVERSO CUBIERTOS COMO COTIZANTE MES
@@ -290,6 +331,14 @@ BEGIN
                 WHERE uaa.id_mae_persona = uc.id_mae_persona;*/
 
                 --UNIVERSO 2: Cotizantes con Pago a Seguro un año atras del periodo informado - Afiliados Activos
+            
+                /* UNIVERSO DE DNP */
+                SELECT DISTINCT rut, periodoCotizado, ID_MAE_PERSONA 
+                    INTO #dnpTipo2
+                FROM #DNP dnp
+                WHERE periodoCotizado BETWEEN ldtPeriodoCotizacionUnAnoAtras AND ldtFechaPeriodoInformado
+                AND dnp.rut NOT IN (SELECT rut FROM #UniversoFinalTMP WHERE universoOrigen ='Cotizante Mes' );          
+            
                 SELECT up.id_mae_persona,
                     up.rut,
                     MAX(up.per_cot) ultimoPerCot
@@ -300,23 +349,50 @@ BEGIN
                 AND up.codigoTipoProducto = 1
                 AND up.rut NOT IN (SELECT rut FROM #UniversoFinalTMP WHERE universoOrigen ='Cotizante Mes' )
                 GROUP BY up.id_mae_persona, up.rut;
+            
+                --INCLUSION DE DNP Y COTIZACION
+                SELECT id_mae_persona, rut, max(ultimoPerCot)ultimoPerCot
+                    INTO #Universo2TipoCoberturaTMPDNP
+                FROM 
+                (SELECT id_mae_persona, rut, ultimoPerCot
+                FROM #Universo2TipoCoberturaTMP
+                UNION 
+                SELECT ID_MAE_PERSONA,rut, periodoCotizado AS ultimoPerCot 
+                FROM #dnpTipo2)a
+                GROUP BY id_mae_persona, rut;
+                
 
-                --Universo con mas de 6 periodo cotizados
-                SELECT u2tc.id_mae_persona
-                INTO #Universo2_2TipoCoberturaTMP
-                FROM #Universo2TipoCoberturaTMP u2tc
+               --Universo con mas de 6 periodo COTIZADOS
+                SELECT u2tc.id_mae_persona,u2tc.RUT,b.per_cot
+                INTO #Universo2_COT
+                FROM #Universo2TipoCoberturaTMPDNP u2tc
                     INNER JOIN #MovimientosPagoSeguroTMP b ON (u2tc.id_mae_persona = b.id_mae_persona)
                 WHERE b.per_cot BETWEEN DATEADD(mm, -11, u2tc.ultimoPerCot) AND u2tc.ultimoPerCot
-                AND b.codigoTipoProducto = 1
-                GROUP BY u2tc.id_mae_persona
-                HAVING COUNT(DISTINCT b.per_cot) >= 6;
-                
-                
-
+                AND b.codigoTipoProducto = 1;
+            
+                --Universo con mas de 6 periodo DNP
+                SELECT u2tc.id_mae_persona,u2tc.RUT,periodoCotizado per_cot
+                INTO #Universo2_DNP
+                FROM #Universo2TipoCoberturaTMPDNP u2tc
+                    INNER JOIN #DNP b ON (u2tc.id_mae_persona = b.id_mae_persona)
+                WHERE b.periodoCotizado BETWEEN DATEADD(mm, -11, u2tc.ultimoPerCot) AND u2tc.ultimoPerCot;
+            
+                 --Universo FIANL con mas de 6 periodo cotizados (DNP + COTIZACIONES)
+                SELECT DISTINCT a.id_mae_persona
+                INTO #Universo2_2TipoCoberturaTMP
+                FROM
+                (SELECT id_mae_persona, RUT, per_cot
+                FROM #Universo2_DNP
+                union
+                SELECT id_mae_persona, RUT, per_cot
+                FROM #Universo2_COT)a
+                GROUP BY a.id_mae_persona
+                HAVING COUNT(DISTINCT a.per_cot) >= 6;
+            
                 SELECT u2tc.ultimoPerCot, 
                     DMGestion.obtenerUltimaFechaMes(u2tc.ultimoPerCot) ultimaFechaMesPerCot
                 INTO #UltimaFechaMesPerCotTMP
-                FROM #Universo2TipoCoberturaTMP u2tc
+                FROM #Universo2TipoCoberturaTMPDNP u2tc
                     INNER JOIN #Universo2_2TipoCoberturaTMP u22tc ON (u2tc.id_mae_persona = u22tc.id_mae_persona)
                 GROUP BY u2tc.ultimoPerCot;
             
@@ -337,8 +413,8 @@ BEGIN
                     ISNULL(uaa.sexo, '') sexo,
                     (CASE 
                         WHEN ((uaa.fechaNacimiento IS NOT NULL) AND 
-                              (uaa.fechaNacimiento < ufmpc.ultimaFechaMesPerCot)) THEN
-                            CONVERT(BIGINT, (DATEDIFF(mm, uaa.fechaNacimiento, ufmpc.ultimaFechaMesPerCot)/12))
+                              (uaa.fechaNacimiento < ldtUltimaFechaMesInformar)) THEN
+                            CONVERT(BIGINT, (DATEDIFF(mm, uaa.fechaNacimiento, ldtUltimaFechaMesInformar)/12))
                         ELSE CONVERT(BIGINT, 0)
                      END) edadActuarial,
                     (CASE 
@@ -359,7 +435,6 @@ BEGIN
                 DROP TABLE #UltimaFechaMesPerCotTMP;
             
             ---AFILIADOS INDEPENDIENTES O VOLUNTARIOS
-                
                 
                 --Universo Pago Seguro
                 SELECT DISTINCT vc.id_mae_persona,
@@ -482,7 +557,7 @@ BEGIN
                 INNER JOIN DDS.GrupoMovimiento gm ON gm.codigoTipoMovimiento = tmm.ID_TIP_MOVIMIENTO
                 INNER JOIN DDS.TB_MAE_PERSONA tmp ON tmp.ID_MAE_PERSONA = tmm.ID_MAE_PERSONA
                 WHERE gm.codigoSubgrupoMovimiento = 1106
-                    AND gm.codigoProducto = 6
+                    AND gm.codigoProducto = 1
                     AND tmm.PER_COT IN (ldtPeriodoCotizacion,ldtFechaPeriodoInformado)
                 GROUP BY rut;
             
@@ -524,7 +599,7 @@ BEGIN
             
             DELETE FROM  #UniversoFinalTMP
             WHERE sexo = 'M' 
-                AND edadActuarial > 65;
+                AND edadActuarial >= 65;
 
             DELETE FROM  #UniversoFinalTMP
             WHERE sexo = 'F'
@@ -534,9 +609,7 @@ BEGIN
             DELETE FROM  #UniversoFinalTMP
             WHERE sexo = 'F'
                 AND edadCubiertaSeguro <= 60
-                AND edadActuarial > 65;    
-        
-            
+                AND edadActuarial >= 65;   
             
         SELECT rut,max(periodoCotizado)periodo,min(prioridad) orden
            INTO  #filtro
@@ -584,6 +657,3 @@ BEGIN
        ROLLBACK;
        CALL DMGestion.registrarErrorProceso(cstNombreProcedimiento, lstCodigoError);*/
 END
-
-
-
