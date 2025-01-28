@@ -1,21 +1,21 @@
 ALTER  PROCEDURE dchavez.cargarFctLagunaPrevisionalDetalleManual(IN periodoInformar date,OUT codigoError VARCHAR(10))
 BEGIN
 /**
-        - Nombre archivo                            : cargarFctAfiliadoCotizanteManual.sql
-        - Nombre del módulo                         : Circular 1536
-        - Fecha de  creación                        : 04-07-2011
-        - Nombre del autor                          : Ricardo Salinas S. - Logica
-        - Descripción corta del módulo              : procedimiento que carga la Fact table FctAfiliadoCotizante, modelo de Circular 1536.
+        - Nombre archivo                            : cargarFctLagunaPrevisionalDetalleManual.sql
+        - Nombre del módulo                         : 
+        - Fecha de  creación                        : 
+        - Nombre del autor                          :
+        - Descripción corta del módulo              : .
         - Lista de procedimientos contenidos        : 
-        - Documentos asociados a la creación        : Circular_1536_Documento_Análisis V1.0.doc
-        - Fecha de modificación                     : 17-07-2019
-        - Nombre de la persona que lo modificó      : Denis Chávez. 
+        - Documentos asociados a la creación        : 
+        - Fecha de modificación                     : 
+        - Nombre de la persona que lo modificó      :  
         - Cambios realizados                        : 
         - Documentos asociados a la modificación    : 
 
-        - Fecha de modificación                     : 25-09-2023
-        - Cambios realizados                        : Modificacion de rut pagador para coitzante mes CCIAV (ACEC)
-        - Nombre de la persona que lo modificó      : Denis Chávez. 
+        - Fecha de modificación                     : 
+        - Cambios realizados                        : 
+        - Nombre de la persona que lo modificó      : 
     **/
     --variable para capturar el codigo de error
     DECLARE lstCodigoError                              VARCHAR(10);    --variable local de tipo varchar
@@ -247,19 +247,30 @@ BEGIN
     
     
         -------------- PERIODO COTIZADO ANTES DE LA LAGUNA -----------------------------------------------------------------------
-        
+    
         SELECT DISTINCT rut_mae_persona rut, per.periodo,vc.per_cot,date(dateadd(dd,-1,per.periodo))fechaUF,
-            sum(vc.monto_pesos)montoPesos,round((montoPesos/vvu.valorUF),2)montoUF
-        INTO #COTIZ
+            sum(vc.monto_pesos)montoPesos,round((montoPesos/vvu.valorUF),2)montoUF, 
+            CASE WHEN montoUF > vti.valor THEN 'Si' ELSE 'No' END superaTope,
+            CASE WHEN superaTope = 'Si' THEN vti.valor ELSE montoUF END montoUFCalculado,
+            CASE WHEN superaTope = 'Si' THEN vvf.valorUF*vti.valor ELSE montoPesos  END montoPesosCalculado
+        INTO #UNI
         FROM DDS.VectorCotizaciones vc
             INNER JOIN (SELECT rut,perAnterior, per_cot, periodo ,InicioLaguna  
                         FROM dchavez.periodoCotizadosTMP
                         WHERE InicioLaguna = 'Si'
                         ORDER BY periodo ASC) per ON per.rut = vc.rut_mae_persona AND vc.per_cot = per.perAnterior
             INNER JOIN DMGestion.VistaValorUF vvu ON vvu.fechaUF = fechaUF
+            INNER JOIN DMGestion.VistaValorUF vvf ON vvf.fechaUF = fec_acreditacion
+            LEFT OUTER JOIN  DMGestion.vistaTopeImponible vti ON vc.per_cot BETWEEN vti.fechaInicioRango AND vti.fechaTerminoRango
         WHERE vc.codigoTipoProducto = 1
-        AND monto_pesos > 0
-        GROUP BY rut, vc.per_cot,per.periodo, valorUF;
+            AND monto_pesos > 0
+        GROUP BY rut, vc.per_cot,per.periodo, vvu.valorUF,valor,vvf.valorUF;
+    
+        SELECT a.rut, a.periodo, a.per_cot, a.fechaUF,   
+            CASE WHEN a.superaTope = 'Si' THEN a.montoPesosCalculado ELSE a.montoPesos END montoPesos,
+            CASE WHEN a.superaTope = 'Si' THEN a.montoUFCalculado ELSE a.montoUF END montoUF
+        INTO #COTIZ
+        FROM #UNI a;
     
         UPDATE dchavez.periodoCotizadosTMP
         SET montoPesosCotiAnterior = b.montoPesos,
@@ -268,6 +279,7 @@ BEGIN
             INNER JOIN #COTIZ b ON a.rut=b.rut AND a.periodo = b. periodo;
         
         DROP TABLE #COTIZ;
+        DROP TABLE #UNI;
         
         -------------------------------------------------------------------------------------
         
@@ -295,21 +307,20 @@ BEGIN
     
     
         ---------NUMERO DE MESES DE LA LAGUNA
-        
+    
+        UPDATE  #universoFinal
+        SET fechaTerminoLaguna = FechaPension
+        WHERE ClasificacionPersona = 'Pensionado'
+        AND isnull(fechaTerminoLaguna,ldtFechaPeriodoInformado) = ldtFechaPeriodoInformado;
+    
         UPDATE  #universoFinal
         SET nroMesesLaguna = DATEDIFF(mm,fechaInicioLaguna,ISnull(fechaTerminoLaguna,ldtFechaPeriodoInformado))+1
         WHERE ClasificacionPersona = 'Afiliado';
     
         UPDATE  #universoFinal
-        SET nroMesesLaguna = DATEDIFF(mm,fechaInicioLaguna,FechaPension)+1 ,
-        fechaTerminoLaguna = FechaPension
-        WHERE ClasificacionPersona = 'Pensionado'
-        AND indVigenciaUltimaLaguna = 'Si';
-    
-        UPDATE  #universoFinal
         SET nroMesesLaguna = DATEDIFF(mm,fechaInicioLaguna,fechaTerminoLaguna)+1
-        WHERE ClasificacionPersona = 'Pensionado'
-        AND indVigenciaUltimaLaguna = 'No';
+        WHERE ClasificacionPersona = 'Pensionado';
+    
     
          ---------INDICADOR DE VIGENCIA ULTIMA LAGUNA
         UPDATE #universoFinal
@@ -327,7 +338,7 @@ BEGIN
         INNER JOIN DMGestion.DimPersona dp ON dp.id = fmc.idPersona 
         INNER JOIN DMGestion.DimGrupoMovimiento dgm ON dgm.id = fmc.idGrupoMovimiento 
         INNER JOIN DMGestion.DimTipoProducto dtp ON dtp.id = CASE WHEN fmc.idTipoProducto = 10 THEN 2 ELSE fmc.idTipoProducto END 
-        INNER JOIN (SELECT rut,fl.fechaInicioLaguna ,isnull(fechaTerminoLaguna,date('2024-08-01'))fechaTerminoLaguna,fl.orden AS nroLaguna
+        INNER JOIN (SELECT rut,fl.fechaInicioLaguna ,isnull(fechaTerminoLaguna,date(ldtFechaPeriodoInformado))fechaTerminoLaguna,fl.orden AS nroLaguna
                     FROM #universoFinal fl
                     ) fl ON fl.rut = dp.rut 
         WHERE dtp.codigo IN (2,4,5,10)
@@ -370,7 +381,7 @@ BEGIN
         INNER JOIN DMGestion.DimPersona dp ON dp.id = fmc.idPersona 
         INNER JOIN DMGestion.DimGrupoMovimiento dgm ON dgm.id = fmc.idGrupoMovimiento 
         INNER JOIN DMGestion.DimTipoProducto dtp ON dtp.id = CASE WHEN fmc.idTipoProducto = 10 THEN 2 ELSE fmc.idTipoProducto END 
-        INNER JOIN (SELECT rut,fl.fechaInicioLaguna ,isnull(fechaTerminoLaguna,date('2024-08-01'))fechaTerminoLaguna,fl.orden AS nroLaguna
+        INNER JOIN (SELECT rut,fl.fechaInicioLaguna ,isnull(fechaTerminoLaguna,date(ldtFechaPeriodoInformado))fechaTerminoLaguna,fl.orden AS nroLaguna
                     FROM #universoFinal fl
                     ) fl ON fl.rut = dp.rut 
         WHERE dtp.codigo IN (2,4,5,10)
@@ -398,11 +409,11 @@ BEGIN
         INNER JOIN DMGestion.DimPersona dp ON dp.id = fmc.idPersona 
         INNER JOIN DMGestion.DimGrupoMovimiento dgm ON dgm.id = fmc.idGrupoMovimiento 
         INNER JOIN DMGestion.DimTipoProducto dtp ON dtp.id = fmc.idTipoProducto  
-        INNER JOIN (SELECT rut,fl.fechaInicioLaguna ,isnull(fechaTerminoLaguna,date('2024-08-01'))fechaTerminoLaguna,fl.orden AS nroLaguna
+        INNER JOIN (SELECT rut,fl.fechaInicioLaguna ,isnull(fechaTerminoLaguna,date(ldtFechaPeriodoInformado))fechaTerminoLaguna,fl.orden AS nroLaguna
                     FROM #universoFinal fl
                     ) fl ON fl.rut = dp.rut 
         WHERE dtp.codigo  = 6
-            AND periodoDevengRemuneracion BETWEEN fl.fechaInicioLaguna  AND isnull(fl.fechaTerminoLaguna,'20240801') 
+            AND periodoDevengRemuneracion BETWEEN fl.fechaInicioLaguna  AND isnull(fl.fechaTerminoLaguna,ldtFechaPeriodoInformado) 
             AND dgm.tipoMovimiento = 'Abonos'
             AND nombreSubgrupo = 'Cotizaciones'
             AND nombreGrupo = 'Cotizaciones y Depósitos'
@@ -425,7 +436,7 @@ BEGIN
         INNER JOIN DMGestion.DimPersona dp ON dp.id = fd.idAfiliado  
         INNER JOIN DMGestion.DimOrigenDeuda dgm ON dgm.id = fd.idOrigenDeuda  
         INNER JOIN DMGestion.DimSituacionDeuda dsd ON dsd.id = fd.idSituacionDeuda 
-        INNER JOIN (SELECT rut,fechaInicioLaguna ,isnull(fechaTerminoLaguna,'2024-08-01')fechaTerminoLaguna,ORDEn AS nroLaguna
+        INNER JOIN (SELECT rut,fechaInicioLaguna ,isnull(fechaTerminoLaguna,ldtFechaPeriodoInformado)fechaTerminoLaguna,ORDEn AS nroLaguna
                     FROM #universoFinal
                     ) fl ON fl.rut = dp.rut 
         WHERE fd.periodoCotizado BETWEEN fl.fechaInicioLaguna  AND fl.fechaTerminoLaguna
@@ -452,7 +463,7 @@ BEGIN
         SELECT B.RUT,b.periodoTermino, FL.orden nroLaguna
             INTO #TerminoRL
         FROM #universoFinal fl
-            INNER JOIN dchavez.UniversoTerminoRelacionLaboralTMP B ON  fl.rut = b.rut AND b.periodoTermino BETWEEN fl.fechaInicioLaguna AND isnull(fechaTerminoLaguna,'20240801')
+            INNER JOIN dchavez.UniversoTerminoRelacionLaboralTMP B ON  fl.rut = b.rut AND b.periodoTermino BETWEEN fl.fechaInicioLaguna AND isnull(fechaTerminoLaguna,ldtFechaPeriodoInformado)
            ORDER BY fl.orden;
        
        
@@ -474,7 +485,7 @@ BEGIN
             INNER JOIN dchavez.DimEstadoSolicitud des ON des.id = fvp.idEstadoSolicitud 
             INNER JOIN #universoFinal qa ON qa.rut = dp.rut 
         WHERE qa.fechaInicioLaguna >= fechaInicioDescuento 
-        AND isnull(fechaFinDescuento,'20240801') <= isnull(qa.fechaTerminoLaguna,'20240801') 
+        AND isnull(fechaFinDescuento,ldtFechaPeriodoInformado) <= isnull(qa.fechaTerminoLaguna,ldtFechaPeriodoInformado) 
         AND des.codigo = 4
         AND fechaInicioDescuento IS NOT NULL 
         GROUP BY dp.rut,nroLaguna;
