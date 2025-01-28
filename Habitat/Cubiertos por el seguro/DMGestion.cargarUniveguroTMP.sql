@@ -618,8 +618,9 @@ BEGIN
     #UniversoRegistrar a;
 
 
-COMMIT;
-SAVEPOINT;
+    COMMIT;
+    SAVEPOINT;
+    SET codigoError = cstCodigoErrorCero;
     
     -------------------------------------------------------------------------------------------
 --Manejo de Excepciones
