@@ -1,4 +1,4 @@
-ALTER  PROCEDURE dchavez.cargarFctLagunaPrevisionalDetalleManual(IN periodoInformar date,OUT codigoError VARCHAR(10))
+ALTER PROCEDURE dchavez.cargarFctLagunaPrevisionalDetalleManual(IN periodoInformar date,OUT codigoError VARCHAR(10))
 BEGIN
 /**
         - Nombre archivo                            : cargarFctLagunaPrevisionalDetalleManual.sql
@@ -142,7 +142,9 @@ BEGIN
     CREATE date INDEX DT_universoFinal_02 ON #universoFinal (fechaInicioLaguna);
     CREATE date INDEX DT_universoFinal_03 ON #universoFinal (fechaTerminoLaguna);
 
-    CALL dchavez.cargarUniversoPeriodoCotizadosTMP(codigoError);
+    --CALL dchavez.cargarUniversoPeriodoCotizadosTMP(codigoError);
+    SET codigoError = '0';
+    
 
     IF (codigoError = cstCodigoErrorCero) THEN 
 
@@ -206,6 +208,9 @@ BEGIN
             INNER JOIN #siguiente b ON a.rut = b.rut AND a.periodo = b.periodo;
             
             DROP TABLE #siguiente;
+        
+            DELETE FROM dchavez.periodoCotizadosTMP
+            WHERE periodo = ldtFechaPeriodoInformado;
             -----------------------------------------------------------------------------------------
         
             UPDATE dchavez.periodoCotizadosTMP
@@ -458,7 +463,7 @@ BEGIN
             
             -------PLANES APV-----------------------------------------------------------------------------------
     
-            SELECT dp.rut,qa.orden nroLaguna,count(DISTINCT fvp.idTipoProducto) totalPlanes
+            /*SELECT dp.rut,qa.orden nroLaguna,count(DISTINCT fvp.idPersonaEmpleador) totalPlanes
             INTO #planes
             FROM DMGestion.FctVentaPlan fvp 
                 INNER JOIN DMGestion.DimFecha df ON df.id = fvp.idFechaSuscripcion 
@@ -467,7 +472,7 @@ BEGIN
                 INNER JOIN dchavez.DimEstadoSolicitud des ON des.id = fvp.idEstadoSolicitud 
                 INNER JOIN #universoFinal qa ON qa.rut = dp.rut 
             WHERE qa.fechaInicioLaguna >= fechaInicioDescuento 
-            AND isnull(fechaFinDescuento,ldtFechaPeriodoInformado) <= isnull(qa.fechaTerminoLaguna,ldtFechaPeriodoInformado) 
+            AND isnull(fechaFinDescuento,ldtFechaPeriodoInformado) >= isnull(qa.fechaTerminoLaguna,ldtFechaPeriodoInformado) 
             AND des.codigo = 4
             AND fechaInicioDescuento IS NOT NULL 
             GROUP BY dp.rut,nroLaguna;
@@ -476,7 +481,7 @@ BEGIN
             SET totalPlanesAPV = vl.totalPlanes
             FROM #universoFinal fl
                 INNER JOIN #planes vl ON vl.nroLaguna = fl.orden
-                    AND fl.rut = vl.rut;
+                    AND fl.rut = vl.rut;*/
             
             
         
