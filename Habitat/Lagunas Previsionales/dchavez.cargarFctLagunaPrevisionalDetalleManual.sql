@@ -1,4 +1,4 @@
-ALTER PROCEDURE dchavez.cargarFctLagunaPrevisionalDetalleManual(IN periodoInformar date,OUT codigoError VARCHAR(10))
+ALTER  PROCEDURE dchavez.cargarFctLagunaPrevisionalDetalleManual(IN periodoInformar date,OUT codigoError VARCHAR(10))
 BEGIN
 /**
         - Nombre archivo                            : cargarFctLagunaPrevisionalDetalleManual.sql
@@ -89,7 +89,9 @@ BEGIN
         FechaPension            date null, 
         codigoPension           VARCHAR(2) NULL,
         montoPesosCotiAnterior  integer null, 
-        montoUFCotiAnterior     numeric(10,2) null
+        montoUFCotiAnterior     numeric(10,2) NULL,
+        montoPesosRentaAnterior integer null, 
+        montoUFRentaAnterior    numeric(10,2) NULL
     );
     CREATE DATE INDEX DATE_periodoCotizadostmp_01 ON dchavez.periodoCotizadosTMP (periodo);
     CREATE DATE INDEX DATE_periodoCotizadostmp_02 ON dchavez.periodoCotizadosTMP (per_cot);
@@ -136,7 +138,9 @@ BEGIN
         montoUFCotiAnterior numeric(10,2) NULL,
         FechaPension date NULL,
         totalPlanesAPV integer NULL,
-        nroMesesAbonoCCIAV INTEGER NULL
+        nroMesesAbonoCCIAV INTEGER NULL,
+        montoPesosRentaAnterior integer null, 
+        montoUFRentaAnterior    numeric(10,2) NULL
         );
     CREATE HG INDEX HG_universoFinal_01 ON #universoFinal (rut);
     CREATE date INDEX DT_universoFinal_02 ON #universoFinal (fechaInicioLaguna);
@@ -237,9 +241,13 @@ BEGIN
         
             SELECT DISTINCT rut_mae_persona rut, per.periodo,vc.per_cot,date(dateadd(dd,-1,per.periodo))fechaUF,
                 sum(vc.monto_pesos)montoPesos,round((montoPesos/vvu.valorUF),2)montoUF, 
+                sum(vc.renta_imponible)rentaImponiblePesos,round((rentaImponiblePesos/vvu.valorUF),2)rentaImponibleUF,
                 CASE WHEN montoUF > vti.valor THEN 'Si' ELSE 'No' END superaTope,
                 CASE WHEN superaTope = 'Si' THEN vti.valor ELSE montoUF END montoUFCalculado,
-                CASE WHEN superaTope = 'Si' THEN vvf.valorUF*vti.valor ELSE montoPesos  END montoPesosCalculado
+                CASE WHEN superaTope = 'Si' THEN round(vvf.valorUF*vti.valor,0) ELSE montoPesos  END montoPesosCalculado,
+                CASE WHEN rentaImponibleUF > vti.valor THEN 'Si' ELSE 'No' END superaTopeRI,
+                CASE WHEN superaTopeRI = 'Si' THEN vti.valor ELSE rentaImponibleUF END rentaImponobleUFCalculado,
+                CASE WHEN superaTopeRI = 'Si' THEN round(vvf.valorUF*vti.valor,0) ELSE rentaImponiblePesos  END rentaImponiblePesosCalculado
             INTO #UNI
             FROM DDS.VectorCotizaciones vc
                 INNER JOIN (SELECT rut,perAnterior, per_cot, periodo ,InicioLaguna  
@@ -255,13 +263,17 @@ BEGIN
         
             SELECT a.rut, a.periodo, a.per_cot, a.fechaUF,   
                 CASE WHEN a.superaTope = 'Si' THEN a.montoPesosCalculado ELSE a.montoPesos END montoPesos,
-                CASE WHEN a.superaTope = 'Si' THEN a.montoUFCalculado ELSE a.montoUF END montoUF
+                CASE WHEN a.superaTope = 'Si' THEN a.montoUFCalculado ELSE a.montoUF END montoUF,
+                CASE WHEN a.superaTopeRI = 'Si' THEN a.rentaImponiblePesosCalculado ELSE a.rentaImponiblePesos END rentaImponiblePesos,
+                CASE WHEN a.superaTopeRI = 'Si' THEN a.rentaImponobleUFCalculado ELSE a.rentaImponibleUF END rentaImponibleUF
             INTO #COTIZ
             FROM #UNI a;
         
             UPDATE dchavez.periodoCotizadosTMP
             SET montoPesosCotiAnterior = b.montoPesos,
-                montoUFCotiAnterior = b.montoUF
+                montoUFCotiAnterior = b.montoUF,
+                montoPesosRentaAnterior = rentaImponiblePesos,
+                montoUFRentaAnterior = rentaImponibleUF
             FROM dchavez.periodoCotizadosTMP A
                 INNER JOIN #COTIZ b ON a.rut=b.rut AND a.periodo = b. periodo;
             
@@ -272,7 +284,8 @@ BEGIN
             
             INSERT INTO  #universoFinal
             (periodoInformado,rut,fechaAfiliacionSistema,ClasificacionPersona,fechaInicioLaguna,montoPesosCotiAnterior ,montoUFCotiAnterior,FechaPension,orden)
-            SELECT ldtFechaPeriodoInformado,rut, fechaAfiliacionSistema, ClasificacionPersona, periodo,montoPesosCotiAnterior ,montoUFCotiAnterior,FechaPension,  
+            SELECT ldtFechaPeriodoInformado,rut, fechaAfiliacionSistema, ClasificacionPersona, periodo,montoPesosCotiAnterior ,montoUFCotiAnterior,
+            montoPesosRentaAnterior,montoUFRentaAnterior,FechaPension,  
                 DENSE_RANK ()OVER (PARTITION BY rut ORDER BY rut,periodo)orden
             FROM dchavez.periodoCotizadosTMP
             WHERE  InicioLaguna = 'Si';
@@ -447,10 +460,10 @@ BEGIN
             
             -----TERMINO DE RELACION LABORAL
             
-            SELECT B.RUT,b.periodoTermino, FL.orden nroLaguna
+            SELECT b.rutAfiliado RUT,b.periodoInformado periodoTermino, FL.orden nroLaguna
                 INTO #TerminoRL
             FROM #universoFinal fl
-                INNER JOIN dchavez.UniversoTerminoRelacionLaboralTMP B ON  fl.rut = b.rut AND b.periodoTermino BETWEEN fl.fechaInicioLaguna AND isnull(fechaTerminoLaguna,ldtFechaPeriodoInformado)
+                INNER JOIN DMGestion.AgrTerminoRelLaboral B ON  fl.rut = b.rutAfiliado  AND b.periodoInformado = DATEADD(mm,-1,fl.fechaInicioLaguna)
                ORDER BY fl.orden;
            
            
@@ -458,8 +471,7 @@ BEGIN
             SET indTerminoRelacionLaboral = CASE WHEN vl.rut IS NOT NULL THEN 'Si' ELSE 'No' END
             FROM #universoFinal fl
             LEFT OUTER  JOIN #TerminoRL vl ON vl.nroLaguna = fl.orden 
-                AND fl.rut = vl.rut;
-            
+                AND fl.rut = vl.rut;       
             
             -------PLANES APV-----------------------------------------------------------------------------------
     
@@ -508,7 +520,10 @@ BEGIN
             montoPesosCotiAnterior ,  
             montoUFCotiAnterior,
             totalPlanesAPV,
-            nroMesesAbonoCCIAV)
+            nroMesesAbonoCCIAV,
+            montoPesosRentaAnterior,
+            montoUFRentaAnterior
+            )
             SELECT
               dpi.id
             , dp.id idPersona
@@ -532,6 +547,8 @@ BEGIN
             , montoUFCotiAnterior
             , totalPlanesAPV
             , nroMesesAbonoCCIAV
+            , montoPesosRentaAnterior
+            , montoUFRentaAnterior
             FROM #universoFinal a
                 INNER JOIN DMGestion.Dimpersona dp ON dp.rut = a.rut
                     AND dp.fechaVigencia >= ldtMaximaFechaVigencia
