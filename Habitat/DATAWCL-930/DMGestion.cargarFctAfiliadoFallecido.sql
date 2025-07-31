@@ -203,7 +203,7 @@ BEGIN
     SET cchCodTipoProductoCCICO         = '1';
     SET cchAPROBADA                     = 'APROBADA';
     SET cchPAGADA                       = 'PAGADA';
-    SET cstAprobadaNoPerfeccionada      = 'Aprobada no perfeccionada'
+    SET cstAprobadaNoPerfeccionada      = 'Aprobada no perfeccionada';
     SET cchN                            = 'N';
     SET cchS                            = 'S';
     SET cdtMaximaFechaVigencia          = CONVERT(DATE, DMGestion.obtenerParametro('MAXIMA_FECHA_VIGENCIA'), 103);
@@ -2781,7 +2781,7 @@ BEGIN
         INTO #fechaPagoPensionSobTMP
         FROM DDS.SLB_MONTOBEN a
             INNER JOIN #UniversoRegistro b ON (b.numcue = a.numcue
-            A   ND a.tipoben = b.tipoben)
+                AND a.tipoben = b.tipoben)
         WHERE a.tipoben = cinTipoBen8
             AND a.modalidad IN (ctiModalidad1,ctiModalidad5) 
             AND a.cod_financiamiento = cinDos
@@ -3308,6 +3308,7 @@ BEGIN
         INNER JOIN DMGestion.DimEstadoSolicitud des ON des.codigo = tmp.EstadoSolicitud AND des.fechaVigencia >= cdtMaximaFechaVigencia;
 
         --Se inserta en la FctAfiliadoFallecido
+        --cantidad registro = 82090 row(s) inserted
         INSERT INTO DMGestion.FctAfiliadoFallecido(idPeriodoInformado, 
             idTipoProceso, 
             idPersona, 
