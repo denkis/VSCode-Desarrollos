@@ -115,6 +115,8 @@ BEGIN
     DECLARE cchS                            CHAR(1);   
     DECLARE cinAprobadaNoPerfeccionada      INTEGER;
     DECLARE cinAprobada                     INTEGER;
+    DECLARE ctiSubtipobe801                 INTEGER;
+    DECLARE ctiSubtipobe802                 INTEGER;
     
     
 
@@ -200,6 +202,8 @@ BEGIN
     SET cchCodigoModalidadPension11     = '11';
     SET cinCodigoTipoMov63              = 63;
     SET cinCodigoTipoMov66              = 66;
+    SET ctiSubtipobe801                 = 801;
+    SET ctiSubtipobe802                 = 802;
     SET cchCodTipoProductoCCICO         = '1';
     SET cchAPROBADA                     = 'APROBADA';
     SET cchPAGADA                       = 'PAGADA';
@@ -344,7 +348,7 @@ BEGIN
             LEFT OUTER JOIN DDS.STP_PENCERSA p ON (p.numcue = s.numcue 
             AND p.tipoben = s.tipoben 
             AND p.fecsol = s.fecsol)
-        WHERE s.tipoben = 8;
+        WHERE s.tipoben = cinTipoBen8;
 
 
         --CGI-ahr-ini--
@@ -1168,14 +1172,14 @@ BEGIN
         --CGI-ahr-fin--
         SELECT u.id_mae_persona,
             (CASE
-                WHEN (u.tipoben = 8) THEN 
+                WHEN (u.tipoben = cinTipoBen8) THEN 
                     CONVERT(NUMERIC(20, 3), ISNULL(u.ingreso_base, 0)) --10-03-2014 CGI (+)
                 ELSE 
                     CONVERT(NUMERIC(20, 3), cinValor0) --cero
              END) ingresoBase,
             CONVERT(NUMERIC(20, 3), cinValor0) ingresoBaseUF,                   --10-03-2014 CGI (-)
             (CASE
-                WHEN (u.tipoben = 8) THEN 
+                WHEN (u.tipoBen = cinTipoBen8) THEN 
                     CONVERT(NUMERIC(20, 2), ISNULL(u.promedio_rentas_120meses, 0))
                 ELSE CONVERT(NUMERIC(20, 2), cinValor0) --cero
              END) promedioRentas,
@@ -1290,8 +1294,8 @@ BEGIN
         FROM DDS.STP_FECHAPEN p 
         WHERE codeven = 150 
             AND codesteve = 1 
-            AND tipoben = 8 
-            AND subtipben in (801, 802);      
+            AND tipoben = cinTipoBen8 
+            AND subtipben in (ctiSubtipobe801, ctiSubtipobe802);      
          
         DELETE FROM #FechaCalculoPensionRefTMP 
         WHERE RANK >1;
@@ -1310,8 +1314,8 @@ BEGIN
         FROM DDS.STP_FECHAPEN p 
         WHERE codeven IN (400, 420) 
         AND codesteve = 1 
-        AND tipoben = 8 
-        AND subtipben in (801, 802);
+        AND tipoben = cinTipoBen8
+        AND subtipben in (ctiSubtipobe801, ctiSubtipobe802);
 
         DELETE FROM #FechaCalculoAporteAdicional01TMP 
         WHERE RANK >1;
@@ -1352,7 +1356,7 @@ BEGIN
                 AND u.fecsol = uT.fecsol
                 AND u.tipoben = uT.tipoben
             WHERE uT.indicador = 'PER4'
-            AND u.tipoBen = 8
+            AND u.tipoBen = cinTipoBen8
             UNION
             SELECT u.numcue, 
                 u.tipoben, 
@@ -1363,7 +1367,7 @@ BEGIN
                 AND u.fecsol = uT.fecsol
                 AND u.tipoben = uT.tipoben
             WHERE uT.indicador = 'FICH'
-            AND u.tipoBen = 8
+            AND u.tipoBen = cinTipoBen8
         )a;
 
         --Fecha selección modalidad pensión
@@ -1377,7 +1381,7 @@ BEGIN
             AND u.tipoben = p.tipoben 
             AND u.fecsol = p.fecsol)
         WHERE p.fec_emision_selmod IS NOT NULL
-        AND u.tipoben = 8;
+        AND u.tipoben = cinTipoBen8;
 
         --Fecha de emisión Certificado de Saldo que origina la selección de modalidad de pensión
         SELECT DISTINCT ant_fec_emision,
@@ -1389,7 +1393,7 @@ BEGIN
               and ant_cambio_modalidad = cchN
               GROUP BY ant_numrut) a
             INNER JOIN #UniversoFallecidosTMP_03 u ON (a.ant_numrut = u.rut)
-        WHERE u.tipoben = 8;
+        WHERE u.tipoben = cinTipoBen8;
 
         SELECT DISTINCT a.fecemi_cersal ant_fec_emision,
             u.rut ant_numrut
@@ -1399,7 +1403,7 @@ BEGIN
             AND a.tipoben = u.tipoben 
             AND a.fecsol = u.fecsol)
             LEFT OUTER JOIN #STP_CSE_ANTECEDENTETMP c on (c.ant_numrut = u.rut)
-        where u.tipoben = 8
+        where u.tipoben = cinTipoBen8
         and c.ant_numrut is null;
 
         SELECT a.ant_fec_emision,
@@ -1456,7 +1460,7 @@ BEGIN
                 AND u.fecsol=d.fecsol)
             WHERE d.tipo_pago = 2 --definitivo
             AND d.fec_liquidacion IS NOT NULL
-            AND u.tipoBen = 8
+            AND u.tipoBen = cinTipoBen8
         )
         SELECT DISTINCT numcue,fec_liquidacion
             INTO #FechaPrimerPagoPensionDef
@@ -1469,10 +1473,10 @@ BEGIN
         WITH primerPagoRV AS (
         SELECT DISTINCT dp.cuentaAntigua numcue,rutPersona, a.fec_acreditacion
         FROM DMGestion.UniversoMovimientosRVTMP a
-            INNER JOIN DMGestion.DimPersona dp ON a.rutPersona = dp.rut AND dp.fechaVigencia >= '2199-12-31' 
+            INNER JOIN DMGestion.DimPersona dp ON a.rutPersona = dp.rut AND dp.fechaVigencia >= cdtMaximaFechaVigencia
             INNER JOIN #UniversoFallecidosTMP_03 u ON (u.numcue = dp.cuentaAntigua  
                 AND u.fecsol < a.fec_acreditacion
-                AND u.tipoben = 8)
+                AND u.tipoben = cinTipoBen8)
         WHERE a.fec_acreditacion > a.fechaDefuncion
             AND u.numcue NOT IN (SELECT numcue FROM #fechaPrimPagoModeloFall))
         SELECT numcue, DMGestion.obtenerFechaXdiaHabil(fec_acreditacion, 2) fechaPrimerPagoPension
@@ -1499,7 +1503,7 @@ BEGIN
         FROM DDS.TABLASYS t
             INNER JOIN (SELECT DISTINCT fecsol 
                         FROM #UniversoFallecidosTMP_03
-                        WHERE tipoben = 8) z ON (t.numitem = CONVERT(BIGINT, DATEFORMAT(z.fecsol, 'YYYYMM') || '01')) --yyyyMMdd
+                        WHERE tipoben = cinTipoBen8) z ON (t.numitem = CONVERT(BIGINT, DATEFORMAT(z.fecsol, 'YYYYMM') || '01')) --yyyyMMdd
         WHERE CODTAB IN ('PENMINHM<70');
     
         SELECT z.fecsol,
@@ -1509,7 +1513,7 @@ BEGIN
         FROM dds.TABLASYS t
             INNER JOIN (SELECT DISTINCT fecsol 
                         FROM #UniversoFallecidosTMP_03
-                        WHERE tipoben = 8) z ON (t.numitem = CONVERT(BIGINT, DATEFORMAT(z.fecsol, 'YYYYMM') || '01')) --yyyyMMdd
+                        WHERE tipoben = cinTipoBen8) z ON (t.numitem = CONVERT(BIGINT, DATEFORMAT(z.fecsol, 'YYYYMM') || '01')) --yyyyMMdd
         WHERE CODTAB IN ('PENMINHM>=70');
     
         SELECT z.fecsol,
@@ -1519,7 +1523,7 @@ BEGIN
         FROM dds.TABLASYS t
         INNER JOIN (SELECT DISTINCT fecsol 
                     FROM #UniversoFallecidosTMP_03
-                        WHERE tipoben = 8) z ON (t.numitem = CONVERT(BIGINT,DATEFORMAT(z.fecsol, 'YYYYMM') || '01' )) --yyyyMMdd
+                        WHERE tipoben = cinTipoBen8) z ON (t.numitem = CONVERT(BIGINT,DATEFORMAT(z.fecsol, 'YYYYMM') || '01' )) --yyyyMMdd
         WHERE CODTAB IN ('PENMINHM>=75');
 
         SELECT u.numcue,
@@ -1534,7 +1538,7 @@ BEGIN
         INTO #UniversoSolicitudSobTMP
         FROM #UniversoFallecidosTMP_03 u
             LEFT OUTER JOIN #TABLASYS_70 t ON (u.fecsol = t.fecsol)
-        WHERE u.tipoben = 8;
+        WHERE u.tipoben = cinTipoBen8;
     
         UPDATE #UniversoSolicitudSobTMP u SET 
             u.pensionMinima = t.valtab
@@ -1665,7 +1669,7 @@ BEGIN
                     CONVERT(CHAR(2), '03') --NO CUBIERTO
                 WHEN (u.codigoSituacionAfiliado = '07') THEN 
                     CONVERT(CHAR(2), '01') --  TOTAL
-                WHEN (u.tipoben = 8 AND u.subtipben IN (801, 802)) THEN
+                WHEN (u.tipoben = cinTipoBen8 AND u.subtipben IN (ctiSubtipobe801, ctiSubtipobe802)) THEN
                     CASE 
                         WHEN (u.PORCENTAJE_COBERTURA_SEG IN (35, 50)) THEN 
                             CONVERT(CHAR(2), '02') --parcial
@@ -1697,27 +1701,27 @@ BEGIN
                       (u.COD_CIASEG IN (3, 7)) AND 
                       (codigoTipoCobertura IN ('01', '02')) AND
                       (m87.id_mae_persona IS NOT NULL)) THEN 
-                    CONVERT(CHAR(2), '07')
+                    CONVERT(CHAR(2), cchCodigoModalidadPension07)
                 WHEN (u.modalidad = 3 AND u.tipoGarantia = 'SIMPLE') THEN 
-                    CONVERT(CHAR(2), '01')
+                    CONVERT(CHAR(2), cchCodigoModalidadPension01)
                 WHEN (u.modalidad = 3 AND u.tipoGarantia = 'GARANTIZADA') THEN 
-                    CONVERT(CHAR(2), '02')
+                    CONVERT(CHAR(2), cchCodigoModalidadPension02)
                 WHEN (u.modalidad = 5 AND u.tipoGarantia = 'SIMPLE') THEN 
-                    CONVERT(CHAR(2), '03')
+                    CONVERT(CHAR(2), cchCodigoModalidadPension03)
                 WHEN (u.modalidad = 5 AND u.tipoGarantia = 'GARANTIZADA') THEN 
-                    CONVERT(CHAR(2), '04')
+                    CONVERT(CHAR(2), cchCodigoModalidadPension04)
                 WHEN (u.modalidad = 9 AND u.tipoGarantia = 'SIMPLE') THEN 
-                    CONVERT(CHAR(2), '05')
+                    CONVERT(CHAR(2), cchCodigoModalidadPension05)
                 WHEN (u.modalidad = 9 AND u.tipoGarantia = 'GARANTIZADA') THEN 
-                    CONVERT(CHAR(2), '06')
+                    CONVERT(CHAR(2), cchCodigoModalidadPension06)
                 WHEN (u.modalidad = 1) THEN 
-                    CONVERT(CHAR(2), '08')
+                    CONVERT(CHAR(2), cchCodigoModalidadPension08)
                 WHEN (u.modalidad = 6) THEN 
-                    CONVERT(CHAR(2), '09')
+                    CONVERT(CHAR(2), cchCodigoModalidadPension09)
                 WHEN (u.modalidad = 2) THEN 
-                    CONVERT(CHAR(2), '12')
+                    CONVERT(CHAR(2), cchCodigoModalidadPension12)
                 WHEN (u.modalidad IS NULL OR u.modalidad = 0) THEN 
-                    CONVERT(CHAR(2), '0')
+                    CONVERT(CHAR(2), cchSinClasificar)
                 ELSE 
                     CONVERT(CHAR(2), '00')
              END) codigoModalidadPension,
@@ -1752,25 +1756,25 @@ BEGIN
              END) montoTotalAporte, 
             --ISNULL(m.sumaMontoUF, 0.0) montoTotalAporte,
             (CASE
-                WHEN (u.tipoBen = 8) THEN
+                WHEN (u.tipoBen = cinTipoBen8) THEN
                     CONVERT(CHAR(2), '08')
                 ELSE
                     CONVERT(CHAR(2), '00')
              END) codigoTipoPension,
             (CASE
-                WHEN (u.tipoBen = 8) THEN
+                WHEN (u.tipoBen = cinTipoBen8) THEN
                     CONVERT(CHAR(2), '01')
                 ELSE
                     CONVERT(CHAR(2), '00')
              END) codigoCausalRecalculo,
             (CASE
-                WHEN (u.tipoBen = 8) THEN
+                WHEN (u.tipoBen = cinTipoBen8) THEN
                     CONVERT(CHAR(2), '01')
                 ELSE
                     CONVERT(CHAR(2), '00')
              END) codigoTipoAnualidad,
             (CASE
-                WHEN (u.tipoBen = 8) THEN
+                WHEN (u.tipoBen = cinTipoBen8) THEN
                     CONVERT(CHAR(2), '01')
                 ELSE
                     CONVERT(CHAR(2), '00')
@@ -1804,25 +1808,25 @@ BEGIN
             fpppd.fechaPrimerPagoPension fechaPrimerPagoPenDef,
             fpfc.fechaPrimeraFichaCalculo,
             (CASE
-                WHEN (u.tipoben = 8 AND bn.codigoEstadoBienesNacionales IS NOT NULL) THEN
+                WHEN (u.tipoBen = cinTipoBen8 AND bn.codigoEstadoBienesNacionales IS NOT NULL) THEN
                     bn.codigoEstadoBienesNacionales
                 ELSE
                     CONVERT(CHAR(1), cchN) 
              END) codigoEstadoBienesNacionales,
             (CASE
-                WHEN (u.tipoben = 8 AND bn.codigoTipoBenOriginRegulariza IS NOT NULL) THEN
+                WHEN (u.tipoBen = cinTipoBen8 AND bn.codigoTipoBenOriginRegulariza IS NOT NULL) THEN
                     bn.codigoTipoBenOriginRegulariza
                 ELSE
                     CONVERT(CHAR(2), '00')
              END) codigoTipoBenOriginRegulariza,
             (CASE
-                WHEN (u.tipoben = 8 AND bn.fecEnvioBienesNacionales IS NOT NULL) THEN
+                WHEN (u.tipoBen = cinTipoBen8 AND bn.fecEnvioBienesNacionales IS NOT NULL) THEN
                     bn.fecEnvioBienesNacionales
                 ELSE
                     CONVERT(DATE, NULL)
              END) fecEnvioBienesNacionales,
             (CASE
-                WHEN (u.tipoben = 8 AND bn.fecRegularizacion IS NOT NULL) THEN
+                WHEN (u.tipoBen = cinTipoBen8 AND bn.fecRegularizacion IS NOT NULL) THEN
                     bn.fecRegularizacion
                 ELSE
                    CONVERT(DATE, NULL)
@@ -1904,11 +1908,11 @@ BEGIN
 
         UPDATE #UniversoFallecidosTMP_04 SET
             a.codigoModalidadPension = (CASE b.modalidad
-                                            WHEN 1 THEN CONVERT(CHAR(2), '08')
-                                            WHEN 3 THEN CONVERT(CHAR(2), '01')
-                                            WHEN 5 THEN CONVERT(CHAR(2), '03')
-                                            WHEN 2 THEN CONVERT(CHAR(2), '12')
-                                            ELSE '0'
+                                            WHEN 1 THEN CONVERT(CHAR(2), cchCodigoModalidadPension08)
+                                            WHEN 3 THEN CONVERT(CHAR(2), cchCodigoModalidadPension01)
+                                            WHEN 5 THEN CONVERT(CHAR(2), cchCodigoModalidadPension03)
+                                            WHEN 2 THEN CONVERT(CHAR(2), cchCodigoModalidadPension12)
+                                            ELSE cchSinClasificar
                                         END),
             a.modalidad = b.modalidad
         FROM #UniversoFallecidosTMP_04 a
@@ -1917,15 +1921,15 @@ BEGIN
             AND a.numcue = b.numcue
             AND a.tipoben = b.tipoben
             AND a.fecsol = b.fecsol)
-        WHERE a.codigoModalidadPension = '0'
+        WHERE a.codigoModalidadPension = cchSinClasificar
         AND a.codigoTipoPension = '08';
 
         UPDATE #UniversoFallecidosTMP_04 SET 
-            u.codigoModalidadPension = '01',
+            u.codigoModalidadPension = cchCodigoModalidadPension01,
             u.modalidad = 3
         FROM #UniversoFallecidosTMP_04 u
             JOIN DMGestion.UniversoMovimientosRVTMP m ON (u.id_mae_persona = m.id_mae_persona)
-        WHERE u.codigoModalidadPension = '0'
+        WHERE u.codigoModalidadPension = cchSinClasificar
         AND u.codigoTipoPension = '08'
         AND m.fec_movimiento >= u.fecsol;
 
@@ -2226,7 +2230,7 @@ BEGIN
             AND a.fecsol = u.fecsol)
         WHERE a.ferealiz IS NOT NULL
             AND a.codeven IN (998, 999)
-            AND u.tipoben = 8
+            AND u.tipoBen = cinTipoBen8
             AND u.codigoModalidadPension IN (cchCodigoModalidadPension03, cchCodigoModalidadPension04, cchCodigoModalidadPension05, cchCodigoModalidadPension06, cchCodigoModalidadPension08,cchCodigoModalidadPension09)
             AND u.fechaPrimerFichaCalculoRP IS NULL
         GROUP BY a.numcue, u.idPersona, a.tipoben, u.fecsol; 
@@ -2253,7 +2257,7 @@ BEGIN
             AND a.fecsol = u.fecsol)
         WHERE a.ferealiz IS NOT NULL
             AND a.codeven = 500
-            AND u.tipoben = 8
+            AND u.tipoBen = cinTipoBen8
             AND u.codigoModalidadPension IN (cchCodigoModalidadPension03, cchCodigoModalidadPension04, cchCodigoModalidadPension05, cchCodigoModalidadPension06, cchCodigoModalidadPension08,cchCodigoModalidadPension09)
             AND u.fechaPrimerFichaCalculoRP IS NULL
         GROUP BY a.numcue, u.idPersona, a.tipoben, u.fecsol; 
@@ -2524,7 +2528,7 @@ BEGIN
             INNER JOIN #UniversoRegistro u ON (p.tipoben = u.tipoben
                 AND p.fecsol = u.fecsol
                 AND p.numcue = u.numcue)
-        WHERE p.tipoben = 8
+        WHERE p.tipoBen = cinTipoBen8
         AND p.modpen_selmod = 5
             AND u.codigoModalidadPension IN (cchCodigoModalidadPension03, cchCodigoModalidadPension04)
             AND ISNULL(u.montoPrimPensDefRTUF, 0) = 0
@@ -2612,7 +2616,7 @@ BEGIN
             INNER JOIN #UniversoRegistro u ON (p.tipoben = u.tipoben
             AND p.fecsol = u.fecsol
             AND p.numcue = u.numcue)
-        WHERE p.tipoben = 8
+        WHERE p.tipoBen = cinTipoBen8
         AND p.modalidad = 5
         AND p.tipo_pago = 2
         AND p.cod_financiamiento = 2
@@ -2655,7 +2659,7 @@ BEGIN
                 INNER JOIN #UniversoRegistro b ON (a.numcue = b.numcue
                 AND a.fecsol = b.fecsol
                 AND a.tipoben = b.tipoben)
-            WHERE a.tipoben = 8
+            WHERE a.tipoBen = cinTipoBen8
             AND a.tipo_pago = 2
             AND a.fec_primer_pago IS NOT NULL
             AND b.fechaPrimerFichaCalculoRP IS NULL
@@ -2671,7 +2675,7 @@ BEGIN
                 INNER JOIN #UniversoRegistro b ON (a.numcue = b.numcue
                 AND a.fecsol = b.fedevpen
                 AND a.tipoben = b.tipoben)
-            WHERE a.tipoben = 8
+            WHERE a.tipoBen = cinTipoBen8
             AND a.tipo_pago = 2
             AND a.fec_primer_pago IS NOT NULL
             AND b.fechaPrimerFichaCalculoRP IS NULL
@@ -2910,7 +2914,7 @@ BEGIN
         FROM #UniversoRegistro u, DMGestion.VistaValorPensionMinima vvpm
         WHERE periodoFechaCierre  = vvpm.periodo
         AND u.montoPensionMesAnterior > 0
-        AND u.tipoben = 8
+        AND u.tipoBen = cinTipoBen8
         AND pensionMinimaPesos IS NOT NULL;
 
         SELECT DISTINCT v.fechaUF,
@@ -2942,7 +2946,7 @@ BEGIN
             CONVERT(NUMERIC(10, 2), 0.0) pensionBasicaSolidariaUF
         INTO #PensionBasicaSolidariaTMP
         FROM #UniversoRegistro u, DMGestion.VistaPensionBasicaSolidaria pbs 
-        WHERE u.tipoben = 8
+        WHERE u.tipoBen = cinTipoBen8
         AND u.fechaCierre BETWEEN pbs.fechaInicioRango AND pbs.fechaTerminoRango;
 
         SELECT DISTINCT v.fechaUF,
@@ -2971,19 +2975,19 @@ BEGIN
             a.indIngresoSCOMP = cchS
         WHERE a.fecsol >= cdtFecha01IndScomp --'2009-07-01'
         AND a.montoPensionRefUF > a.pensionBasicaSolidariaUF
-        AND a.tipoben = 8
+        AND a.tipoBen = cinTipoBen8
         AND a.pensionBasicaSolidariaUF > 0;
             
         UPDATE #UniversoRegistro a SET 
             a.indIngresoSCOMP = cchS
         WHERE a.fecsol > cdtFecha02IndScomp --'2004-08-19'
         AND a.codigoModalidadPension IN (cchCodigoModalidadPension01,cchCodigoModalidadPension02,cchCodigoModalidadPension03,cchCodigoModalidadPension04,cchCodigoModalidadPension05,cchCodigoModalidadPension06,cchCodigoModalidadPension07)
-        AND a.tipoben = 8;   
+        AND a.tipoBen = cinTipoBen8;   
 
         -- Se valida que la pension sea mayor que la pensión minima
         UPDATE #UniversoRegistro a SET 
             a.indIngresoSCOMP = cchS
-        WHERE a.tipoben = 8
+        WHERE a.tipoBen = cinTipoBen8
         AND a.fecsol < cdtFecha01IndScomp --'2009-07-01'
         AND a.fecsol > cdtFecha02IndScomp --'2004-08-19'
         AND a.montoPensionRefUF > a.pensionMinimaUF
