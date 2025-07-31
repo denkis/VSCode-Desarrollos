@@ -3434,10 +3434,10 @@ BEGIN
 -------------------------------------------------------------------------------------------     
 --Manejo de Excepciones      
 -------------------------------------------------------------------------------------------
-/*EXCEPTION
+EXCEPTION
     WHEN OTHERS THEN
         SET lstCodigoError = SQLSTATE;
         SET codigoError = lstCodigoError;
         ROLLBACK;
-        CALL ControlProcesos.registrarErrorProceso(cstOwner, cstNombreProcedimiento, lstCodigoError);*/
+        CALL ControlProcesos.registrarErrorProceso(cstOwner, cstNombreProcedimiento, lstCodigoError);
 END
