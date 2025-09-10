@@ -149,7 +149,6 @@ BEGIN
      
     --se elimina los errores de carga y datos de la fact para el periodo a informar
     CALL Circular1536.eliminarFact(cstNombreProcedimiento, cstNombreTablaFct, linIdPeriodoInformar, codigoError);
-   
 
     -- Verifica si se elimino con éxito
     IF (codigoError = '0') THEN
@@ -412,6 +411,7 @@ BEGIN
         AND dtp.codigo IN (1, 6) --CCICO y CCIAV
         AND fmc.periodoDevengRemuneracion IN (ldtPeriodoCotizacion, ldtFechaPeriodoInformado)
         AND fmc.montoPesos > 0
+        AND fmc.codigoTrafil02 NOT IN (11138,11140)
         ORDER BY fmc.fechaOperacion;
 
         --Se obtiene el mayor periodo de cotización
