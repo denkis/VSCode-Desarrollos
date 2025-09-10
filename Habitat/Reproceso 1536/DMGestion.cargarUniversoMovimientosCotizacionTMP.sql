@@ -109,6 +109,7 @@ BEGIN
     INTO ltiExisteTabla
     FROM DUMMY;
 
+
     IF (ltiExisteTabla = ctiExiste) THEN
         DROP TABLE DMGestion.UniversoMovimientosCotizacionTMP;
     END IF;
@@ -134,7 +135,9 @@ BEGIN
         indUltFecMovProdHist        CHAR(2) NULL DEFAULT 'No', --Esto se identifica desde el último percot por producto
         indUltFecAcrProdHist        CHAR(2) NULL DEFAULT 'No', --Esto se identifica desde el último fecha Movimiento por producto
         indUltPerCotHist            CHAR(2) NULL DEFAULT 'No', --Esto se identifica desde el último fecha acreditación por producto
-        indUltPerCotCotizanteMes    CHAR(2) NULL DEFAULT 'No' 
+        indUltPerCotCotizanteMes    CHAR(2) NULL DEFAULT 'No',
+        cod_movimiento              INTEGER NULL,
+        codTrafil02                 INTEGER NULL
     );
      
     CREATE HG INDEX HG_UniversoMovimientosCotizacionTMP_01 ON DMGestion.UniversoMovimientosCotizacionTMP( id_mae_persona );
@@ -160,6 +163,7 @@ BEGIN
     CREATE HG INDEX HG_UniversoMovimientosCotizacionTMP_21 ON DMGestion.UniversoMovimientosCotizacionTMP( indUltPerCotHist );
     CREATE HG INDEX HG_UniversoMovimientosCotizacionTMP_22 ON DMGestion.UniversoMovimientosCotizacionTMP( indUltPerCotCotizanteMes );
     CREATE HG INDEX HG_UniversoMovimientosCotizacionTMP_23 ON DMGestion.UniversoMovimientosCotizacionTMP( id_mae_persona, codigoTipoProducto, per_cot, fec_movimiento, fec_acreditacion);
+    CREATE HG INDEX HG_UniversoMovimientosCotizacionTMP_24 ON DMGestion.UniversoMovimientosCotizacionTMP( codTrafil02 );
 
     --Obtener Universo de la FctInformación Afiliado Cliente
     SELECT b.idPersona,
@@ -193,7 +197,9 @@ BEGIN
         mesesPermanencia,
         codigoActEconomicaEmpleador,
         periodoAfiliacionSistema,
-        indCotizanteMes)
+        indCotizanteMes,
+        cod_movimiento,
+        codTrafil02)
     SELECT b.id_mae_persona,
         b.codigoTipoProducto, 
         ISNULL(b.monto_pesos, cbiMontoCero) monto_pesos,
@@ -221,11 +227,13 @@ BEGIN
         (CASE
             WHEN ((b.fec_acreditacion BETWEEN ldtFechaPeriodoInformado AND ldtUltimaFechaMesInformar)
                  AND b.per_cot IN (ldtFechaPeriodoCotizacion, ldtFechaPeriodoInformado)
-                 AND b.codTrafil02 NOT IN (11138,11140,81130,81132)) THEN --no considerar movimientos de trafil 02 de AFC
+                 AND b.codTrafil02 NOT IN (11138,11140,81130,81132)) THEN --No considerar movimientos de cotizacion de AFC
                 cchSi
             ELSE
                 cchNo
          END) AS indCotizanteMes
+         ,cod_movimiento,
+         codTrafil02
     FROM DDS.VectorCotizaciones b
         INNER JOIN #PersonaTMP a ON (a.idPersonaOrigen = b.id_mae_persona)
     WHERE b.codigoTipoProducto IN (cinCicco, cinCciav) --productos CCICO y CCIAV
@@ -256,9 +264,9 @@ BEGIN
     SELECT id_mae_persona,per_cot,codigoTipoProducto --> INESP-92
     INTO #MaximiPerCotCotizanteMesTMP 
     FROM (   
-    SELECT id_mae_persona,codigoTipoProducto,per_cot, dense_rank() over (partition by id_mae_persona order by codigoTipoProducto,per_cot)ranking
-   FROM DMGestion.UniversoMovimientosCotizacionTMP
-    WHERE indCotizanteMes = cchSi)RNK
+        SELECT id_mae_persona,codigoTipoProducto,per_cot, dense_rank() over (partition by id_mae_persona order by codigoTipoProducto,per_cot)ranking
+        FROM DMGestion.UniversoMovimientosCotizacionTMP
+        WHERE indCotizanteMes = cchSi)RNK
     where rnk.ranking  = cinUno ;
 
 
