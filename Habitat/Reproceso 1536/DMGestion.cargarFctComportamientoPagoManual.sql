@@ -176,6 +176,7 @@ BEGIN
     CALL DMGestion.cargarUniversoMovimientosCotizacionTMP(ldtFechaPeriodoInformado, codigoError);
 
     --Verifica si se elimino con exito los errores de carga y datos de la fact
+    set codigoError = '0';
     IF (codigoError = cstCodigoErrorCero) THEN
 
         CREATE TABLE #FctComportamientoPago  (
@@ -306,7 +307,8 @@ BEGIN
             um.per_cot
         INTO #UniversoMovimientosMaximoPerCotTMP
         FROM DMGestion.UniversoMovimientosCotizacionTMP um
-        WHERE um.indUltPerCotHist = cchSi;
+        WHERE um.indUltPerCotHist = cchSi
+         AND codTrafil02 NOT IN (11138,11140,81130,81132); --Excluir Cotizaciones por AFC;
 
         --Se obtiene la cantidad de productos que tiene una persona para el maximo periodo de cotización, solo los que tienes mas de un producto
         SELECT id_mae_persona,
@@ -433,7 +435,8 @@ BEGIN
             um.per_cot
         INTO #UniversoMovimientosMaximoPerCotTMP_MES
         FROM DMGestion.UniversoMovimientosCotizacionTMP um
-        WHERE um.indUltPerCotCotizanteMes = cchSi;
+        WHERE um.indUltPerCotCotizanteMes = cchSi
+            AND codTrafil02 NOT IN (11138,11140,81130,81132); --Excluir Cotizaciones por AFC;
 
         --Se obtiene la cantidad de productos que tiene una persona para el maximo periodo de cotización, solo los que tienes mas de un producto
         SELECT id_mae_persona,
@@ -561,6 +564,7 @@ BEGIN
         INTO #UniversoUltimaFechaCotizacionCCIAVTMP
         FROM DMGestion.UniversoMovimientosCotizacionTMP um
         WHERE um.indUltFecAcrProdHist = cchSi
+        AND codTrafil02 NOT IN (11138,11140,81130,81132) --Excluir Cotizaciones por AFC
         AND um.codigoTipoProducto = cinCciav; --Producto CCIAV
 
         SELECT um.id_mae_persona,
@@ -573,6 +577,7 @@ BEGIN
         WHERE um.indUltPerCotProdHist = cchSi
         AND um.codigoTipoProducto = cinCciav --Producto CCIAV
         AND um.indCotizanteMes    = cchSi
+        AND um.codTrafil02 NOT IN (11138,11140,81130,81132) --Excluir Cotizaciones por AFC
         GROUP BY um.id_mae_persona, um.per_cot;
 
         --Se obtiene la ultimo dia del mes, correspondiente al periodo de cotización y el valor de la UF
@@ -627,6 +632,7 @@ BEGIN
         INTO #UniversoUltimaFechaCotizacionCCICOTMP
         FROM DMGestion.UniversoMovimientosCotizacionTMP um
         WHERE um.indUltFecAcrProdHist = cchSi
+        AND codTrafil02 NOT IN (11138,11140,81130,81132) --Excluir Cotizaciones por AFC
         AND codigoTipoProducto = cinCicco; --Producto CCICO
 
         --Remuneración imponible asociada a la última cotización en la CCICO, en pesos, se crea el universo de remuneraciones imponibles asociada a la última
@@ -679,7 +685,7 @@ BEGIN
         FROM DMGestion.UniversoMovimientosCotizacionTMP um
         WHERE um.codigoTipoProducto = cinCicco --Producto CCICO
         AND um.per_cot >= um.periodoAfiliacionSistema
-        AND um.codigoSubGrupoMovimiento  IN (cinCcico1101,cinCcico1105,cinCcico1104)
+        AND um.codigoSubGrupoMovimiento  IN (cinCcico1101,cinCcico1105,cinCcico1104,1116)
         GROUP BY um.id_mae_persona;
 
         SELECT um.id_mae_persona,
@@ -689,17 +695,17 @@ BEGIN
         WHERE um.codigoTipoProducto = cinCicco --Producto CCICO
         AND um.rutPersona = um.rut_pagador -- Trabajador Independiente
         AND um.per_cot = DATEADD(MONTH, -1, um.periodoAfiliacionSistema) --PERCOT Anterior a fecha de afiliacion con 1 mes de diferencia
-        AND um.codigoSubGrupoMovimiento  IN (cinCcico1101,cinCcico1105,cinCcico1104)
+        AND um.codigoSubGrupoMovimiento  IN (cinCcico1101,cinCcico1105,cinCcico1104,1116)
         GROUP BY um.id_mae_persona;
 
-        SELECT 	id_mae_persona,
-       			SUM(ISNULL(numeroMesesCotizadosCCICO,0))AS  numeroMesesCotizadosCCICO
+        SELECT  id_mae_persona,
+                SUM(ISNULL(numeroMesesCotizadosCCICO,0))AS  numeroMesesCotizadosCCICO
         INTO #UniversoNumeroMesesCotizadosCCICO
-        FROM (	SELECT id_mae_persona,ISNULL(numeroMesesCotizadosCCICO,0) AS numeroMesesCotizadosCCICO
-       			FROM #UniversoMesesCotizadosCCICO
-       			UNION ALL
-       			SELECT id_mae_persona,ISNULL(numeroMesesCotizadosCCICO,0) AS numeroMesesCotizadosCCICO
-       			FROM #UniversoCCICOAntesFechaAfiliacion)a
+        FROM (  SELECT id_mae_persona,ISNULL(numeroMesesCotizadosCCICO,0) AS numeroMesesCotizadosCCICO
+                FROM #UniversoMesesCotizadosCCICO
+                UNION ALL
+                SELECT id_mae_persona,ISNULL(numeroMesesCotizadosCCICO,0) AS numeroMesesCotizadosCCICO
+                FROM #UniversoCCICOAntesFechaAfiliacion)a
         GROUP BY id_mae_persona;
 
         --Número total de meses cotizados en la CCICO y CCIAV
@@ -709,7 +715,7 @@ BEGIN
         FROM DMGestion.UniversoMovimientosCotizacionTMP um
         WHERE um.codigoTipoProducto IN (cinCicco, cinCciav) --Producto CCICO y CCIAV
         AND um.per_cot >= um.periodoAfiliacionSistema --DATAWCL-963
-        AND um.codigoSubGrupoMovimiento  IN (cinCcico1101,cinCcico1105,cinCcico1104)
+        AND um.codigoSubGrupoMovimiento  IN (cinCcico1101,cinCcico1105,cinCcico1104,1116)
         GROUP BY um.id_mae_persona;
 
         SELECT um.id_mae_persona,
@@ -718,17 +724,17 @@ BEGIN
         FROM DMGestion.UniversoMovimientosCotizacionTMP um
         WHERE um.codigoTipoProducto IN (cinCicco, cinCciav) --Producto CCICO y CCIAV
         AND um.per_cot = DATEADD(MONTH, -1, um.periodoAfiliacionSistema)
-        AND um.codigoSubGrupoMovimiento  IN (cinCcico1101,cinCcico1105,cinCcico1104)
+        AND um.codigoSubGrupoMovimiento  IN (cinCcico1101,cinCcico1105,cinCcico1104,1116)
         GROUP BY um.id_mae_persona;
 
-        SELECT 	id_mae_persona,
-       			SUM(ISNULL(numeroMesesCotizados,0))AS  numeroMesesCotizados
+        SELECT  id_mae_persona,
+                SUM(ISNULL(numeroMesesCotizados,0))AS  numeroMesesCotizados
         INTO #UniversoNumeroMesesCotizadosTMP
-        FROM (	SELECT id_mae_persona,ISNULL(numeroMesesCotizados,0) AS numeroMesesCotizados
-       			FROM #UniversoNumeroMesesCotizados
-       			UNION ALL
-       			SELECT id_mae_persona,ISNULL(numeroMesesCotizados,0) AS numeroMesesCotizados
-       			FROM #UniversoCCICOyCCIAVAntesFechaAfiliacion)a
+        FROM (  SELECT id_mae_persona,ISNULL(numeroMesesCotizados,0) AS numeroMesesCotizados
+                FROM #UniversoNumeroMesesCotizados
+                UNION ALL
+                SELECT id_mae_persona,ISNULL(numeroMesesCotizados,0) AS numeroMesesCotizados
+                FROM #UniversoCCICOyCCIAVAntesFechaAfiliacion)a
         GROUP BY id_mae_persona;
 
         INSERT INTO #FctComportamientoPago(
@@ -829,6 +835,7 @@ BEGIN
         WHERE ptmp.rut > cinCero
         AND periodoDevengRemuneracion BETWEEN ldtFechaPeriodoCotizacionInicio12Meses AND ldtFechaPeriodoInformado--ldtFechaPeriodoCotizacion
         AND fmc.codigoTipoProducto = cinCicco  --CCICO
+        AND fmc.codTrafil02 NOT IN (11138,11140,81130,81132) --Excluir Cotizaciones por AFC
         GROUP BY fmc.rutPersona, fmc.per_cot, ptmp.mesesPermanencia;
 
         SELECT m.rut,
@@ -1035,7 +1042,7 @@ BEGIN
 
 
         SELECT  dp.rut INTO #universo3
-        FROM DMGestion.FctComportamientoPago fcp
+        FROM DMgestion.FctComportamientoPago fcp
             INNER JOIN DMGestion.DimPersona dp ON dp.id = fcp.idPersona
             INNER JOIN DMGestion.DimPeriodoInformado dpi ON dpi.id = fcp.idPeriodoInformado
             INNER JOIN #topeImponibleMes tpi ON tpi.rut = dp.rut
@@ -1047,7 +1054,7 @@ BEGIN
 
 
         SELECT  dp.rut INTO #universo6
-        FROM DMGestion.FctComportamientoPago fcp
+        FROM DMgestion.FctComportamientoPago fcp
             INNER JOIN DMGestion.DimPersona dp ON dp.id = fcp.idPersona
             INNER JOIN DMGestion.DimPeriodoInformado dpi ON dpi.id = fcp.idPeriodoInformado
             INNER JOIN #topeImponibleMes tpi ON tpi.rut = dp.rut
@@ -1125,6 +1132,7 @@ BEGIN
         WHERE indUltPerCotProdHist = cchSi
         AND rut_pagador > cinCero
         AND codigoTipoProducto = cinCicco --Producto CCICO
+        AND codTrafil02 NOT IN (11138,11140,81130,81132) --Excluir Cotizaciones por AFC
         GROUP BY id_mae_persona,
             rut_pagador,
             codigoActEconomicaEmpleador;
