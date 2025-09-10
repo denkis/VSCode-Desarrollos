@@ -176,7 +176,7 @@ BEGIN
     CALL DMGestion.cargarUniversoMovimientosCotizacionTMP(ldtFechaPeriodoInformado, codigoError);
 
     --Verifica si se elimino con exito los errores de carga y datos de la fact
-    set codigoError = '0';
+   
     IF (codigoError = cstCodigoErrorCero) THEN
 
         CREATE TABLE #FctComportamientoPago  (
@@ -1470,7 +1470,7 @@ BEGIN
                                                            NULL);
 
         --Obtener datos RentaPromedio
-        CALL DMGestion.cargarRentaPromedioPPP(ldtFechaPeriodoRentaPPP);
+        --CALL DMGestion.cargarRentaPromedioPPP(ldtFechaPeriodoRentaPPP);
 
         COMMIT;
         SAVEPOINT;
